@@ -4,7 +4,7 @@ use crate::scanning::token_type::TokenType;
 #[derive(Clone)]
 pub struct Token {
     token_type: TokenType,
-    lexeme: String,
+    pub lexeme: String,
     literal: TokenValue,
     line: usize
 }

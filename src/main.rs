@@ -9,6 +9,7 @@ use crate::scanning::scanner::Scanner;
 use crate::scanning::token::Token;
 
 pub mod scanning;
+pub mod ast;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
