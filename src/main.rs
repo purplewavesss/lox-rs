@@ -5,11 +5,15 @@ use std::fs;
 use std::str;
 use std::io;
 
+use crate::parser::Parser;
+use crate::parser::SyntaxError;
 use crate::scanning::scanner::Scanner;
 use crate::scanning::token::Token;
+use crate::scanning::token_type::TokenType;
 
 pub mod scanning;
 pub mod ast;
+pub mod parser;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -82,12 +86,31 @@ fn run_prompt() {
 fn run(source: String) -> i32 {
     let mut scanner = Scanner::new(&source);
     let tokens: Vec<Token> = scanner.scan_tokens();
+    let mut parser = Parser::new(tokens);
 
-    for token in tokens {
-        println!("{}", token);
+    match parser.parse() {
+        Ok(tree) => {
+            println!("{tree}");
+            0
+        }
+
+        Err(error) => {
+            match error {
+                SyntaxError::ParseError(token, msg) => {
+                    if token.token_type == TokenType::End {
+                        report(token.line, " at end", &msg);
+                    }
+
+                    else {
+                        let at: String = format!(" at '{}'", token.lexeme);
+                        report(token.line, &at, &msg);
+                    }
+
+                    1
+                }
+            }
+        }
     }
-
-    0
 }
 
 /// Throws a Lox error.

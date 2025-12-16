@@ -1,17 +1,19 @@
 use std::fmt;
 use crate::scanning::token_type::TokenType;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Token {
-    token_type: TokenType,
+    pub token_type: TokenType,
     pub lexeme: String,
-    literal: TokenValue,
-    line: usize
+    pub literal: TokenValue,
+    pub line: usize,
+    pub has_literal: bool
 }
 
 impl Token {
     pub fn new(token_type: TokenType, lexeme: String, literal: TokenValue, line: usize) -> Token {
-        Token { token_type, lexeme, literal, line }
+        let has_literal: bool = literal != TokenValue::None();
+        Token { token_type, lexeme, literal, line, has_literal }
     }
 }
 
@@ -21,12 +23,14 @@ impl fmt::Display for Token {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenValue {
     Identifier(String),
     Str(String),
     Int(i64),
     Float(f64),
+    Bool(bool),
+    Nil(),
     None()
 }
 
@@ -37,6 +41,8 @@ impl fmt::Display for TokenValue {
             Self::Str(string) => write!(f, "{string}"),
             Self::Int(value) => write!(f, "{value}"),
             Self::Float(value) => write!(f, "{value}"),
+            Self::Bool(bool) => write!(f, "{bool}"),
+            Self::Nil() => write!(f, ""),
             Self::None() => write!(f, "")
         }
     }

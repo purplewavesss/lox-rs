@@ -1,6 +1,6 @@
 use strum_macros::Display;
 
-#[derive(Copy, Clone, Display)]
+#[derive(Copy, Clone, Display, PartialEq, Debug)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen, RightParen, LeftBrace, RightBrace,
