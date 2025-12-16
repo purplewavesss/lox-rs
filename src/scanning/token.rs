@@ -1,18 +1,19 @@
 use std::fmt;
 use crate::scanning::token_type::TokenType;
+use enum_as_inner::EnumAsInner;
 
 #[derive(Clone, Debug)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
-    pub literal: TokenValue,
+    pub literal: Value,
     pub line: usize,
     pub has_literal: bool
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, lexeme: String, literal: TokenValue, line: usize) -> Token {
-        let has_literal: bool = literal != TokenValue::None();
+    pub fn new(token_type: TokenType, lexeme: String, literal: Value, line: usize) -> Token {
+        let has_literal: bool = literal != Value::None();
         Token { token_type, lexeme, literal, line, has_literal }
     }
 }
@@ -23,8 +24,8 @@ impl fmt::Display for Token {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum TokenValue {
+#[derive(Clone, Debug, PartialEq, EnumAsInner)]
+pub enum Value {
     Identifier(String),
     Str(String),
     Int(i64),
@@ -34,7 +35,7 @@ pub enum TokenValue {
     None()
 }
 
-impl fmt::Display for TokenValue {
+impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Identifier(name) => write!(f, "{name}"),

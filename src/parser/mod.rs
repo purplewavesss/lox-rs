@@ -1,6 +1,6 @@
-use crate::ast::Expr;
-use crate::scanning::{token::{Token, TokenValue}, token_type::TokenType::{self, *}};
-use thiserror::Error;
+use crate::LoxError;
+use crate::expr::Expr;
+use crate::scanning::{token::{Token, Value}, token_type::TokenType::{self, *}};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -13,12 +13,12 @@ impl Parser {
     }
 
     /// Builds ASTs for expressions
-    pub fn parse(&mut self) -> Result<Expr, SyntaxError> {
+    pub fn parse(&mut self) -> Result<Expr, LoxError> {
         self.equality()
     }
 
     /// Builds ASTs for equality
-    fn equality(&mut self) -> Result<Expr, SyntaxError> {
+    fn equality(&mut self) -> Result<Expr, LoxError> {
         let mut exp: Expr = self.comparison()?;
 
         while self.match_token(&[NotEqual, EqualEqual]) {
@@ -31,7 +31,7 @@ impl Parser {
     }
 
     /// Builds ASTs for comparisons
-    fn comparison(&mut self) -> Result<Expr, SyntaxError> {
+    fn comparison(&mut self) -> Result<Expr, LoxError> {
         let mut exp: Expr = self.term()?;
 
         while self.match_token(&[Greater, GreaterEqual, Less, LessEqual]) {
@@ -44,7 +44,7 @@ impl Parser {
     }
 
     /// Builds ASTs for arithmetic expressions
-    fn term(&mut self) -> Result<Expr, SyntaxError> {
+    fn term(&mut self) -> Result<Expr, LoxError> {
         let mut exp: Expr = self.factor()?;
 
         while self.match_token(&[Minus, Plus]) {
@@ -57,7 +57,7 @@ impl Parser {
     }
 
     /// Builds ASTs for geometric expressions
-    fn factor(&mut self) -> Result<Expr, SyntaxError> {
+    fn factor(&mut self) -> Result<Expr, LoxError> {
         let mut exp: Expr = self.unary()?;
 
         while self.match_token(&[Slash, Asterisk]) {
@@ -69,7 +69,7 @@ impl Parser {
         Ok(exp)
     }
     
-    fn unary(&mut self) -> Result<Expr, SyntaxError> {
+    fn unary(&mut self) -> Result<Expr, LoxError> {
         if self.match_token(&[Not, Minus]) {
             let op: Token = self.previous();
             let right: Expr = self.unary()?;
@@ -79,19 +79,19 @@ impl Parser {
         self.primary()
     }
 
-    fn primary(&mut self) -> Result<Expr, SyntaxError> {
+    fn primary(&mut self) -> Result<Expr, LoxError> {
         match self.tokens[self.current].token_type {
             False => { 
                 self.advance();
-                Ok(Expr::Literal(TokenValue::Bool(false)))
+                Ok(Expr::Literal(Value::Bool(false)))
             },
             True => {
                 self.advance();
-                Ok(Expr::Literal(TokenValue::Bool(true)))
+                Ok(Expr::Literal(Value::Bool(true)))
             },
             Nil => {
                 self.advance();
-                Ok(Expr::Literal(TokenValue::Nil()))
+                Ok(Expr::Literal(Value::Nil()))
             },
             Int | Float | Str => {
                 self.advance();
@@ -103,7 +103,7 @@ impl Parser {
                 self.consume(RightParen, "Expect ')' after expression.")?;
                 Ok(exp)
             },
-            _ => Err(SyntaxError::ParseError(self.tokens[self.current].clone(), String::from("Invalid literal.")))
+            _ => Err(LoxError::ParseError(self.tokens[self.current].clone(), String::from("Invalid literal.")))
         }
     }
 
@@ -153,18 +153,18 @@ impl Parser {
     }
 
     /// Consumes a right parenthesis
-    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<Token, SyntaxError> {
+    fn consume(&mut self, token_type: TokenType, msg: &str) -> Result<Token, LoxError> {
         if self.check(&token_type) {
             return Ok(self.advance());
         }
 
-        Err(SyntaxError::ParseError(self.peek(), msg.to_string()))
+        Err(LoxError::ParseError(self.peek(), msg.to_string()))
     }
 
     fn sync(&mut self) {
         self.advance();
 
-        while (!self.is_at_end()) {
+        while !self.is_at_end() {
             if self.previous().token_type == Semicolon {
                 return;
             }
@@ -177,10 +177,4 @@ impl Parser {
             self.advance();
         }
     }
-}
-
-#[derive(Error, Debug)]
-pub enum SyntaxError {
-    #[error("Syntax error: ")]
-    ParseError(Token, String)
 }

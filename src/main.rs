@@ -4,16 +4,19 @@ use std::process;
 use std::fs;
 use std::str;
 use std::io;
-
+use crate::expr::Expr;
+use crate::interpreter::interpret;
 use crate::parser::Parser;
-use crate::parser::SyntaxError;
 use crate::scanning::scanner::Scanner;
 use crate::scanning::token::Token;
+use crate::scanning::token::Value;
 use crate::scanning::token_type::TokenType;
+use thiserror::Error;
 
 pub mod scanning;
-pub mod ast;
+pub mod expr;
 pub mod parser;
+pub mod interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -69,7 +72,7 @@ fn run_prompt() {
         match stdin.read_line(&mut input) {
             Ok(_) => (),
             Err(_) => {
-                error(1, "Invalid UTF8 input was given to prompt.");
+                throw(String::from("1"), "Invalid UTF8 input was given to prompt.");
                 continue;
             }
         };
@@ -90,35 +93,69 @@ fn run(source: String) -> i32 {
 
     match parser.parse() {
         Ok(tree) => {
-            println!("{tree}");
-            0
-        }
-
-        Err(error) => {
-            match error {
-                SyntaxError::ParseError(token, msg) => {
-                    if token.token_type == TokenType::End {
-                        report(token.line, " at end", &msg);
-                    }
-
-                    else {
-                        let at: String = format!(" at '{}'", token.lexeme);
-                        report(token.line, &at, &msg);
-                    }
-
-                    1
-                }
+            let value: Result<Value, LoxError> = interpret(tree);
+            match value {
+                Ok(value) => {
+                    println!("{value}");
+                    0
+                },
+                Err(error) => report_error_type(error)
             }
         }
+
+        Err(error) => report_error_type(error),
     }
 }
 
 /// Throws a Lox error.
-fn error(line: usize, message: &str) {
-    report(line, "", message);
+pub fn throw(identifier: String, message: &str) {
+    report(identifier, "", message);
 }
 
 /// Reports a Lox error.
-fn report(line: usize, at: &str, message: &str) {
-    eprintln!("[{line}] Error{at}: {message}");
+fn report(identifier: String, at: &str, message: &str) {
+    eprintln!("[{identifier}] Error{at}: {message}");
+}
+
+fn report_error_type(error: LoxError) -> i32 {
+    match error {
+        LoxError::ParseError(token, msg) => {
+            if token.token_type == TokenType::End {
+                report(token.line.to_string(), " at end", &msg);
+            }
+
+            else {
+                let at: String = format!(" at '{}'", token.lexeme);
+                report(token.line.to_string(), &at, &msg);
+            }
+            1
+        },
+        LoxError::RuntimeError(expr, msg) => {
+            let at: String = format!(" in '{expr}'");
+            report(String::from("Runtime Error"), &at, &msg);
+            2
+        },
+        LoxError::ValueError(value, msg) => {
+            let at: String = format!(" for '{value}'");
+            report(String::from("Value Error"), &at, &msg);
+            3
+        },
+        LoxError::CompilerBug(expr, msg) => {
+            let at: String = format!(" in '{expr}'");
+            report(String::from("Compiler Bug"), &at, &msg);
+            4
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum LoxError {
+    #[error("Syntax error: ")]
+    ParseError(Token, String),
+    #[error("Runtime error: ")]
+    RuntimeError(Expr, String),
+    #[error("Value error: ")]
+    ValueError(Value, String),
+    #[error("Compiler bug: ")]
+    CompilerBug(Expr, String)
 }

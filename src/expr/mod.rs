@@ -1,9 +1,10 @@
 use std::fmt::{self, Display};
-use crate::scanning::token::{Token, TokenValue};
+use crate::scanning::token::{Token, Value};
 
+#[derive(Clone, Debug)]
 pub enum Expr {
     // e.g. "5" or "test"
-    Literal(TokenValue),
+    Literal(Value),
     // e.g. -1 or !bool
     Unary(Token, Box<Expr>),
     // e.g. 5 + 2
@@ -32,13 +33,13 @@ mod tests {
     fn matches_book_example() {
         let exp = Expr::Binary(
             Box::new(Expr::Unary(
-                Token::new(TokenType::Minus, '-'.to_string(), TokenValue::None(), 1), 
-                Box::new(Expr::Literal(TokenValue::Int(123)))
+                Token::new(TokenType::Minus, '-'.to_string(), Value::None(), 1), 
+                Box::new(Expr::Literal(Value::Int(123)))
             )),
-            Token::new(TokenType::Asterisk, '*'.to_string(), TokenValue::None(), 1),
+            Token::new(TokenType::Asterisk, '*'.to_string(), Value::None(), 1),
             Box::new(Expr::Grouping(
                 Box::new(
-                    Expr::Literal(TokenValue::Float(45.67))
+                    Expr::Literal(Value::Float(45.67))
                 )
             ))
         );

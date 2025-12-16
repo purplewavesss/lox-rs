@@ -1,7 +1,7 @@
 use std::num::{ParseFloatError, ParseIntError};
-use crate::{error};
-use crate::scanning::token::{Token, TokenValue};
+use crate::scanning::token::{Token, Value};
 use crate::scanning::token_type::TokenType::{self, *};
+use crate::throw;
 use ternop::ternary;
 
 pub struct Scanner {
@@ -31,7 +31,7 @@ impl Scanner {
         // Append end token
         self.tokens.push(Token::new(TokenType::End, 
                                     String::new(), 
-                                    TokenValue::None(), 
+                                    Value::None(), 
                                     self.loc.line));
 
         // Drain and return tokens
@@ -54,6 +54,7 @@ impl Scanner {
             '+' => self.add_token(Plus, None),
             ';' => self.add_token(Semicolon, None),
             '*' => self.add_token(Asterisk, None),
+            '%' => self.add_token(Mod, None),
 
             // One or more char tokens
             '!' => {
@@ -104,7 +105,7 @@ impl Scanner {
                 }
 
                 else {
-                    error(self.loc.line, "Unexpected character.");
+                    throw(self.loc.line.to_string(), "Unexpected character.");
                 }
             }
         }
@@ -122,10 +123,10 @@ impl Scanner {
     }
 
     /// Adds token to source array
-    fn add_token(&mut self, token_type: TokenType, literal: Option<TokenValue>) {
+    fn add_token(&mut self, token_type: TokenType, literal: Option<Value>) {
         // Substring of source
         let text: String = self.source[self.loc.start..self.loc.current].iter().collect();
-        let literal = literal.unwrap_or(TokenValue::None());
+        let literal = literal.unwrap_or(Value::None());
         
         self.tokens.push(Token::new(token_type, text, literal, self.loc.line));
     }
@@ -166,7 +167,7 @@ impl Scanner {
 
         // Unterminated string case
         if self.is_at_end() {
-            error(self.loc.line, "Unterminated string.");
+            throw(self.loc.line.to_string(), "Unterminated string.");
             return;
         }
 
@@ -175,7 +176,7 @@ impl Scanner {
 
         // Trim surrounding quotes
         let value: String = self.get_token_string(self.loc.start + 1, self.loc.current - 1);
-        self.add_token(Str, Some(TokenValue::Str(value)));
+        self.add_token(Str, Some(Value::Str(value)));
     }
 
     /// Parses and consumes a number from the array
@@ -196,21 +197,21 @@ impl Scanner {
             // Cast to float
             let float: Result<f64, ParseFloatError> = self.get_token_string(self.loc.start, self.loc.current).parse::<f64>();
             let float: f64 = float.unwrap_or_else(|_| {
-                error(self.loc.line, "Float larger than 1.7976931348623157E+308");
+                throw(self.loc.line.to_string(), "Float larger than 1.7976931348623157E+308");
                 0.0
             });
 
-            return self.add_token(Float, Some(TokenValue::Float(float)));
+            return self.add_token(Float, Some(Value::Float(float)));
         }
 
         // Int case
         let int: Result<i64, ParseIntError> = self.get_token_string(self.loc.start, self.loc.current).parse::<i64>();
         let int: i64 = int.unwrap_or_else(|_| {
-            error(self.loc.line, "Integer larger than 9,223,372,036,854,775,807");
+            throw(self.loc.line.to_string(), "Integer larger than 9,223,372,036,854,775,807");
             0
         });
 
-        return self.add_token(Float, Some(TokenValue::Int(int)));
+        return self.add_token(Float, Some(Value::Int(int)));
     }
 
     /// Parses and consumes an identifier from the array
