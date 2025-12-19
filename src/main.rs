@@ -105,7 +105,7 @@ fn run(source: String, env: &mut Environment) -> i32 {
             Err(err) => report_error_type(err)
         },
 
-        Err(mut errs) => {
+        Err(errs) => {
             // Report all syntax errors
             _ = errs.into_iter().for_each(|err| { report_error_type(err); });
             

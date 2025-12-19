@@ -113,7 +113,7 @@ pub fn interpret(program: Vec<Statement>, env: &mut Environment) -> Result<(), L
     Ok(())
 }
 
-fn interpret_expr(ast: Expr, env: &Environment) -> Result<Value, LoxError> {
+fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
     match ast {
         Expr::Literal(value) => Ok(value),
         Expr::Grouping(expr) => interpret_expr(*expr, env),
@@ -182,7 +182,12 @@ fn interpret_expr(ast: Expr, env: &Environment) -> Result<Value, LoxError> {
                 _ => Err(LoxError::ValueError(left, String::from("Does not have an interpretable value.")))
             }
         },
-        Expr::Variable(name) => env.get(name)
+        Expr::Variable(name) => env.get(name),
+        Expr::Assign(name, exp) => {
+            let value: Value = interpret_expr(*exp, env)?;
+            env.assign(name, &value)?;
+            Ok(value)
+        }
     }
 }
 
@@ -191,7 +196,7 @@ fn interpret_declaration(dec: Statement, env: &mut Environment) -> Result<(), Lo
         match identifier {
             None => Ok(env.define(name.lexeme, Value::Nil())),
             Some(exp) => {
-                match interpret_expr(exp, &env) {
+                match interpret_expr(exp, env) {
                     Ok(value) => Ok(env.define(name.lexeme, value)),
                     Err(error) => Err(error)
                 }

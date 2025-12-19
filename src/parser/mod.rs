@@ -82,7 +82,29 @@ impl Parser {
 
     /// Builds ASTs for expressions
     fn expression(&mut self) -> Result<Expr, LoxError> {
-        self.equality()
+        self.assignment()
+    }
+
+    /// Builds ASTs for assignment
+    fn assignment(&mut self) -> Result<Expr, LoxError> {
+        let exp: Expr = self.equality()?;
+
+        // Consume equals sign
+        if self.match_token(&[Equal]) {
+            let equals: Token = self.previous();
+            // Parse the expression's l-value recursively
+            let value: Expr = self.assignment()?;
+
+            if let Expr::Variable(name) = exp {
+                return Ok(Expr::Assign(name, Box::from(value)))
+            }
+
+            else {
+                return Err(LoxError::ParseError(equals, String::from("Invalid assignment target.")));
+            }
+        }
+
+        Ok(exp)
     }
 
     /// Builds ASTs for equality
