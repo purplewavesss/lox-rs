@@ -10,7 +10,8 @@ pub enum Expr {
     // e.g. 5 + 2
     Binary(Box<Expr>, Token, Box<Expr>),
     // e.g. (8 * 5 - 1)
-    Grouping(Box<Expr>)
+    Grouping(Box<Expr>),
+    Variable(Token)
 }
 
 impl Display for Expr {
@@ -19,7 +20,8 @@ impl Display for Expr {
             Expr::Literal(token) => write!(f, "{token}"),
             Expr::Unary(op, literal) => write!(f, "({} {literal})", op.lexeme),
             Expr::Binary(l, op, r) => write!(f, "({} {l} {r})", op.lexeme),
-            Expr::Grouping(exp) => write!(f, "(group {exp})")
+            Expr::Grouping(exp) => write!(f, "(group {exp})"),
+            Expr::Variable(token)  => write!(f, "{}", token.lexeme),
         }
     }
 }

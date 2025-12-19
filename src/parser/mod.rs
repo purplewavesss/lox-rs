@@ -26,12 +26,39 @@ impl Parser {
 
     fn statement(&mut self) -> Result<Statement, LoxError> {
         if self.match_token(&[Print]) {
-            return self.print_statement();
+            self.print_statement()
         }
 
-        self.expression_statement()
+        else if self.match_token(&[Var]) {
+            match self.declaration() {
+                Ok(stmt) => Ok(stmt),
+                Err(error) => {
+                    self.sync();
+                    Err(error)
+                }
+            }
+        }
+
+        else {
+            self.expression_statement()
+        }
+    }
+    
+    /// Consumes declarations.
+    fn declaration(&mut self) -> Result<Statement, LoxError> {
+        let name: Token = self.consume(Identifier, "Expect variable name.")?;
+        let mut initializer: Option<Expr> = None;
+
+        if self.match_token(&[Equal]) {
+            initializer = Some(self.expression()?);
+        }
+
+        self.consume(Semicolon, "Expect ';' after value.")?;
+
+        Ok(Statement::Var(name, initializer))
     }
 
+    /// Consumes print statements.
     fn print_statement(&mut self) -> Result<Statement, LoxError> {
         let value: Result<Expr, LoxError> = self.expression();
         self.consume(Semicolon, "Expect ';' after value.")?;
@@ -42,6 +69,7 @@ impl Parser {
         }
     }
 
+    /// Consumes expressions.
     fn expression_statement(&mut self) -> Result<Statement, LoxError> {
         let expr: Result<Expr, LoxError> = self.expression();
         self.consume(Semicolon, "Expect ';' after value.")?;
@@ -136,6 +164,10 @@ impl Parser {
             Int | Float | Str => {
                 self.advance();
                 Ok(Expr::Literal(self.previous().literal))
+            },
+            Identifier => {
+                self.advance();
+                Ok(Expr::Variable(self.previous().clone()))
             }
             LeftParen => {
                 self.advance();
@@ -201,6 +233,7 @@ impl Parser {
         Err(LoxError::ParseError(self.peek(), msg.to_string()))
     }
     
+    /// Resyncs the parser in the vent of an error
     fn sync(&mut self) {
         self.advance();
 

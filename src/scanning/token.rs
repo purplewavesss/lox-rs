@@ -2,7 +2,7 @@ use std::fmt;
 use crate::scanning::token_type::TokenType;
 use enum_as_inner::EnumAsInner;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -26,7 +26,7 @@ impl fmt::Display for Token {
 
 #[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum Value {
-    Identifier(String),
+    Identifier(Box<Token>),
     Str(String),
     Int(i64),
     Float(f64),

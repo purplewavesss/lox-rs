@@ -5,7 +5,7 @@ use std::fs;
 use std::str;
 use std::io;
 use crate::expr::Expr;
-use crate::interpreter::interpret;
+use crate::interpreter::interpret::interpret;
 use crate::parser::Parser;
 use crate::scanning::scanner::Scanner;
 use crate::scanning::token::Token;
@@ -13,6 +13,7 @@ use crate::scanning::token::Value;
 use crate::scanning::token_type::TokenType;
 use crate::statement::Statement;
 use thiserror::Error;
+use crate::interpreter::environment::Environment;
 
 pub mod scanning;
 pub mod expr;
@@ -50,7 +51,7 @@ fn run_file(path: &String) -> i32 {
 
     match file {
         Ok(bytes) =>  {
-            let result = run(str::from_utf8(&bytes).unwrap().to_string());
+            let result = run(str::from_utf8(&bytes).unwrap().to_string(), &mut Environment::new());
             result
         },
         Err(_) => {
@@ -63,11 +64,12 @@ fn run_file(path: &String) -> i32 {
 /// Runs an interactive REPL prompt where code can be continuously executed.
 fn run_prompt() {
     let stdin: io::Stdin = io::stdin();
+    let mut env = Environment::new();
 
     loop {
-        // Write prompt to screem
+        // Write prompt to screen
         print!("> ");
-        io::stdout().flush().expect("Something really bad has happened if this program can't flush its own input");
+        io::stdout().flush().unwrap();
         
         let mut input = String::new();
         
@@ -79,30 +81,33 @@ fn run_prompt() {
             }
         };
 
-        if input == "" {
+        if input == "\n" {
             break;
         }
 
-        run(input);
+        run(input, &mut env);
     }
 }
 
 /// Runs a Lox program.
-fn run(source: String) -> i32 {
+///
+/// This function takes in a starting environment, so an environment can have state throughout programs
+/// in the REPL.
+fn run(source: String, env: &mut Environment) -> i32 {
     let mut scanner = Scanner::new(&source);
     let tokens: Vec<Token> = scanner.scan_tokens();
     let mut parser = Parser::new(tokens);
     let parse_results: Vec<Result<Statement, LoxError>> = parser.parse();
     
     match to_statements(parse_results) {
-        Ok(stmts) => match interpret(stmts) {
+        Ok(stmts) => match interpret(stmts, env) {
             Ok(_) => 0,
             Err(err) => report_error_type(err)
         },
 
         Err(mut errs) => {
             // Report all syntax errors
-            _ = errs.drain(..).map(|err| report_error_type(err));
+            _ = errs.into_iter().for_each(|err| { report_error_type(err); });
             
             // Only a parse error can be thrown at this stage, so we return a parse error value
             1
@@ -148,6 +153,7 @@ pub fn throw(identifier: String, message: &str) {
 /// Reports a Lox error.
 fn report(identifier: String, at: &str, message: &str) {
     eprintln!("[{identifier}] Error{at}: {message}");
+    io::stderr().flush().unwrap();
 }
 
 fn report_error_type(error: LoxError) -> i32 {
@@ -177,7 +183,13 @@ fn report_error_type(error: LoxError) -> i32 {
             let at: String = format!(" in '{expr}'");
             report(String::from("Compiler Bug"), &at, &msg);
             4
+        },
+        LoxError::NameError(name, msg) => {
+            let at: String = format!(" for '{name}'");
+            report(String::from("Name Error"), &at, &msg);
+            5
         }
+
     }
 }
 
@@ -190,5 +202,7 @@ pub enum LoxError {
     #[error("Value error: ")]
     ValueError(Value, String),
     #[error("Compiler bug: ")]
-    CompilerBug(Expr, String)
+    CompilerBug(Statement, String),
+    #[error("Name error: ")]
+    NameError(String, String)
 }
