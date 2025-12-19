@@ -211,7 +211,7 @@ impl Scanner {
             0
         });
 
-        return self.add_token(Float, Some(Value::Int(int)));
+        return self.add_token(Int, Some(Value::Int(int)));
     }
 
     /// Parses and consumes an identifier from the array

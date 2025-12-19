@@ -2,6 +2,7 @@ use crate::LoxError;
 use crate::expr::Expr;
 use crate::scanning::token::Value;
 use crate::scanning::token_type::TokenType::*;
+use crate::statement::Statement;
 
 macro_rules! calculate {
     ($left:ident, $right:ident, $op:tt) => {
@@ -95,13 +96,28 @@ macro_rules! equal {
     }
 }
 
-pub fn interpret(ast: Expr) -> Result<Value, LoxError> {
+pub fn interpret(program: Vec<Statement>) -> Result<(), LoxError> {
+    for stmt in program {
+        match stmt {
+            Statement::Expression(expr) => {
+                interpret_expr(expr)?;
+                // Rust's rules are so funny sometimes
+                ()
+            }
+            Statement::Print(print_expr) => println!("{}", interpret_expr(print_expr)?)
+        };
+    }
+
+    Ok(())
+}
+
+fn interpret_expr(ast: Expr) -> Result<Value, LoxError> {
     match ast {
         Expr::Literal(value) => Ok(value),
-        Expr::Grouping(expr) => interpret(*expr),
+        Expr::Grouping(expr) => interpret_expr(*expr),
         Expr::Unary(op, expr) => {
             let error_expr = expr.clone();
-            let expr_value: Value = interpret(*expr)?;
+            let expr_value: Value = interpret_expr(*expr)?;
 
             match op.token_type {
                 Minus => {
@@ -125,8 +141,8 @@ pub fn interpret(ast: Expr) -> Result<Value, LoxError> {
             }
         },
         Expr::Binary(left, op, right) => {
-            let left: Value = interpret(*left)?;
-            let right: Value = interpret(*right)?;
+            let left: Value = interpret_expr(*left)?;
+            let right: Value = interpret_expr(*right)?;
             
             match op.token_type {
                 Minus => calculate!(left, right, -),

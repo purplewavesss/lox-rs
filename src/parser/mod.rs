@@ -1,6 +1,7 @@
 use crate::LoxError;
 use crate::expr::Expr;
 use crate::scanning::{token::{Token, Value}, token_type::TokenType::{self, *}};
+use crate::statement::Statement;
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -13,7 +14,46 @@ impl Parser {
     }
 
     /// Builds ASTs for expressions
-    pub fn parse(&mut self) -> Result<Expr, LoxError> {
+    pub fn parse(&mut self) -> Vec<Result<Statement, LoxError>> {
+        let mut statements: Vec<Result<Statement, LoxError>> = Vec::new();
+
+        while !self.is_at_end() {
+            statements.push(self.statement());
+        }
+
+        statements
+    }
+
+    fn statement(&mut self) -> Result<Statement, LoxError> {
+        if self.match_token(&[Print]) {
+            return self.print_statement();
+        }
+
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> Result<Statement, LoxError> {
+        let value: Result<Expr, LoxError> = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.")?;
+        
+        match value {
+            Ok(exp) => Ok(Statement::Print(exp)),
+            Err(err) => Err(err)
+        }
+    }
+
+    fn expression_statement(&mut self) -> Result<Statement, LoxError> {
+        let expr: Result<Expr, LoxError> = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.")?;
+        
+        match expr {
+            Ok(exp) => Ok(Statement::Expression(exp)),
+            Err(err) => Err(err)
+        }
+    }
+
+    /// Builds ASTs for expressions
+    fn expression(&mut self) -> Result<Expr, LoxError> {
         self.equality()
     }
 
@@ -160,7 +200,7 @@ impl Parser {
 
         Err(LoxError::ParseError(self.peek(), msg.to_string()))
     }
-
+    
     fn sync(&mut self) {
         self.advance();
 

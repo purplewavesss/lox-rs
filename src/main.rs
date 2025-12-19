@@ -11,12 +11,14 @@ use crate::scanning::scanner::Scanner;
 use crate::scanning::token::Token;
 use crate::scanning::token::Value;
 use crate::scanning::token_type::TokenType;
+use crate::statement::Statement;
 use thiserror::Error;
 
 pub mod scanning;
 pub mod expr;
 pub mod parser;
 pub mod interpreter;
+pub mod statement;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -90,20 +92,51 @@ fn run(source: String) -> i32 {
     let mut scanner = Scanner::new(&source);
     let tokens: Vec<Token> = scanner.scan_tokens();
     let mut parser = Parser::new(tokens);
+    let parse_results: Vec<Result<Statement, LoxError>> = parser.parse();
+    
+    match to_statements(parse_results) {
+        Ok(stmts) => match interpret(stmts) {
+            Ok(_) => 0,
+            Err(err) => report_error_type(err)
+        },
 
-    match parser.parse() {
-        Ok(tree) => {
-            let value: Result<Value, LoxError> = interpret(tree);
-            match value {
-                Ok(value) => {
-                    println!("{value}");
-                    0
-                },
-                Err(error) => report_error_type(error)
+        Err(mut errs) => {
+            // Report all syntax errors
+            _ = errs.drain(..).map(|err| report_error_type(err));
+            
+            // Only a parse error can be thrown at this stage, so we return a parse error value
+            1
+        }
+    }
+}
+
+/// Converts a parser result into a vec of statements, if possible
+fn to_statements(results: Vec<Result<Statement, LoxError>>) -> Result<Vec<Statement>, Vec<LoxError>> {
+    let mut statements: Vec<Statement> = Vec::new();
+    let mut errors: Vec<LoxError> = Vec::new();
+    let mut seen_error: bool = false;
+
+    for result in results {
+        match result {
+            Ok(stmt) => {
+                if !seen_error {
+                    statements.push(stmt);
+                }
+            }
+
+            Err(err) => {
+                seen_error = true;
+                errors.push(err);
             }
         }
+    };
 
-        Err(error) => report_error_type(error),
+    if seen_error {
+        Err(errors)
+    }
+
+    else {
+        Ok(statements)
     }
 }
 
@@ -148,7 +181,7 @@ fn report_error_type(error: LoxError) -> i32 {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum LoxError {
     #[error("Syntax error: ")]
     ParseError(Token, String),
