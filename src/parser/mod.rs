@@ -13,19 +13,31 @@ impl Parser {
         Self { tokens, current: 0 }
     }
 
-    /// Builds ASTs for expressions
+    /// Builds all ASTs needed for a program
     pub fn parse(&mut self) -> Vec<Result<Statement, LoxError>> {
         let mut statements: Vec<Result<Statement, LoxError>> = Vec::new();
 
         while !self.is_at_end() {
-            statements.push(self.statement());
+            let statement_result = self.statement();
+
+            // We love band-aid fixes, don't we folks
+            if let Err(_) = statement_result {
+                self.advance();
+            }
+
+            statements.push(statement_result);
         }
 
         statements
     }
 
+    /// Builds ASTs for statements
     fn statement(&mut self) -> Result<Statement, LoxError> {
-        if self.match_token(&[Print]) {
+        if self.match_token(&[If]) {
+            self.if_statement()
+        }
+
+        else if self.match_token(&[Print]) {
             self.print_statement()
         }
 
@@ -46,6 +58,22 @@ impl Parser {
         else {
             self.expression_statement()
         }
+    }
+
+    /// Consumes print statements.
+    fn if_statement(&mut self) -> Result<Statement, LoxError> {
+        self.consume(LeftParen, "Expect '(' after 'if'.")?;
+        let condition: Expr = self.expression()?;
+        self.consume(RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch: Statement = self.statement()?;
+        let mut else_branch: Option<Statement> = None;
+
+        if self.match_token(&[Else]) {
+            else_branch = Some(self.statement()?);
+        }
+
+        Ok(Statement::If(condition, Box::new(then_branch), Box::new(else_branch)))
     }
     
     /// Consumes print statements.
@@ -73,6 +101,7 @@ impl Parser {
         Ok(Statement::Var(name, initializer))
     }
 
+    /// Consumes blocks.
     fn block(&mut self) -> Result<Vec<Box<Statement>>, LoxError> {
         let mut statements: Vec<Box<Statement>> = Vec::new();
 
@@ -103,7 +132,7 @@ impl Parser {
 
     /// Builds ASTs for assignment
     fn assignment(&mut self) -> Result<Expr, LoxError> {
-        let exp: Expr = self.equality()?;
+        let exp: Expr = self.or()?;
 
         // Consume equals sign
         if self.match_token(&[Equal]) {
@@ -118,6 +147,32 @@ impl Parser {
             else {
                 return Err(LoxError::ParseError(equals, String::from("Invalid assignment target.")));
             }
+        }
+
+        Ok(exp)
+    }
+
+    /// Builds ASTs for logical ors
+    fn or(&mut self) -> Result<Expr, LoxError> {
+        let mut exp: Expr = self.and()?;
+
+        while self.match_token(&[Or]) {
+            let operator: Token = self.previous();
+            let right: Expr = self.and()?;
+            exp = Expr::Logical(Box::new(exp), operator, Box::new(right))
+        }
+
+        Ok(exp)
+    }
+
+    /// Builds ASTs for logical ands
+    fn and(&mut self) -> Result<Expr, LoxError> {
+        let mut exp: Expr = self.equality()?;
+
+        while self.match_token(&[And]) {
+            let operator: Token = self.previous();
+            let right: Expr = self.equality()?;
+            exp = Expr::Logical(Box::new(exp), operator, Box::new(right))
         }
 
         Ok(exp)

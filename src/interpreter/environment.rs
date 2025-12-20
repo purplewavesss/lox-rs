@@ -16,7 +16,7 @@ impl Environment {
     pub fn define(&mut self, name: String, value: Value) {
         self.values.insert(name, value);
     }
-
+    
     /// Retrieves an envrionment binding
     pub fn get(&self, name: Token) -> Result<Value, LoxError> {
         if self.values.contains_key(&name.lexeme) {

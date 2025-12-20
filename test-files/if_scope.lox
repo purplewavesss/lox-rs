@@ -1,0 +1,14 @@
+var test = 5;
+
+if (test == 5) {
+    var test = 9;
+    print "yay";
+}
+
+print test;
+
+if (test == 5) {
+    test = 8;
+}
+
+print test;
