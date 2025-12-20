@@ -4,12 +4,27 @@ use crate::{LoxError, scanning::token::{Token, Value}};
 #[derive(Clone)]
 pub struct Environment {
     values: HashMap<String, Value>,
-    enclosing: Option<Box<Environment>>
+    enclosing: Option<Box<Environment>>,
+    assignments: Vec<String>,
+    is_block_env: bool
 }
 
 impl Environment {
     pub fn new() -> Self {
-        Self { values: HashMap::new(), enclosing: None }
+        Self { 
+            values: HashMap::new(), 
+            enclosing: None, 
+            assignments: Vec::new(), 
+            is_block_env: false
+        }
+    }
+
+    /// Creates an environment from an existing environment, with assignments wiped.
+    pub fn get_block_env(env: &Self) -> Self {
+        let mut env: Self = env.clone();
+        env.assignments = Vec::new();
+        env.is_block_env = true;
+        env
     }
 
     /// Defines an environment binding
@@ -38,7 +53,12 @@ impl Environment {
     /// Reassigns an existing environment binding.
     pub fn assign(&mut self, name: Token, value: &Value) -> Result<(), LoxError> {
         if self.values.contains_key(&name.lexeme) {
-            self.values.insert(name.lexeme, value.clone());
+            self.values.insert(name.lexeme.clone(), value.clone());
+            
+            if self.is_block_env {
+                self.assignments.push(name.lexeme);
+            }
+
             Ok(())
         }
 
@@ -50,6 +70,15 @@ impl Environment {
                 }
 
                 Some(ref mut env) => env.assign(name, value)
+            }
+        }
+    }
+
+    pub fn add_assignments(&mut self, block_env: Environment) {
+        for assignment in block_env.assignments {
+            if self.values.contains_key(&assignment) {
+                let block_assignment: Value = block_env.values.get(&assignment).unwrap().clone();
+                self.values.insert(assignment, block_assignment);
             }
         }
     }

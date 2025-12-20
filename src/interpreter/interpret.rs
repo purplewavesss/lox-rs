@@ -115,12 +115,16 @@ fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<(), Lox
     }
 }
 
-fn interpret_block(mut statements: Vec<Box<Statement>>, env: &Environment) -> Result<(), LoxError> {
+fn interpret_block(mut statements: Vec<Box<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
     let statements: Vec<Statement> = statements.drain(..)
                                                .map(|stmt| *stmt)
                                                .collect();
+    let mut block_env: Environment = Environment::get_block_env(env);
 
-    interpret(statements, &mut env.clone())
+    interpret(statements, &mut block_env)?;
+
+    // Add new assignments to current environment
+    Ok(env.add_assignments(block_env))
 }
 
 /// TODO: Desugar all ? calls so this method can use the tailcall crate.
