@@ -100,17 +100,36 @@ macro_rules! equal {
 pub fn interpret(program: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
     for stmt in program {
         match stmt {
+            Statement::Block(statements) => interpret_block(statements, env)?,
             Statement::Expression(expr) => {
                 interpret_expr(expr, env)?;
                 // Rust's rules are so funny sometimes
                 ()
-            }
+            },
             Statement::Print(print_expr) => println!("{}", interpret_expr(print_expr, env)?),
             Statement::Var(name, identifier) => interpret_declaration(Statement::Var(name, identifier), env)?
         };
     }
 
     Ok(())
+}
+
+fn interpret_block(statements: Vec<Box<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
+    let statements: Vec<Statement> = unbox_statements(statements);
+
+    interpret(statements, &mut env.clone())?;
+
+    Ok(())
+}
+
+fn unbox_statements(mut statements: Vec<Box<Statement>>) -> Vec<Statement> {
+    let mut unboxed: Vec<Statement> = Vec::new();
+    
+    for stmt in statements.drain(..) {
+        unboxed.push(*stmt);
+    }
+
+    unboxed
 }
 
 fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {

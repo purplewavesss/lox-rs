@@ -1,13 +1,15 @@
 use std::{collections::HashMap};
 use crate::{LoxError, scanning::token::{Token, Value}};
 
+#[derive(Clone)]
 pub struct Environment {
-    values: HashMap<String, Value>
+    values: HashMap<String, Value>,
+    enclosing: Option<Box<Environment>>
 }
 
 impl Environment {
     pub fn new() -> Self {
-        Self { values: HashMap::new() }
+        Self { values: HashMap::new(), enclosing: None }
     }
 
     /// Defines an environment binding
@@ -22,8 +24,14 @@ impl Environment {
         }
 
         else {
-            let token_name: String = name.lexeme;
-            Err(LoxError::NameError(token_name.clone(), format!("Undefined variable {}.", token_name)))
+            match &self.enclosing {
+                None => {
+                    let token_name: String = name.lexeme.clone();
+                    Err(LoxError::NameError(name.lexeme, format!("Undefined variable {}.", token_name)))
+                }
+
+                Some(env) => env.get(name)
+            }
         }
     }
 
@@ -35,8 +43,14 @@ impl Environment {
         }
 
         else {
-            let token_name: String = name.lexeme.clone();
-            Err(LoxError::NameError(name.lexeme, format!("Undefined variable {}.", token_name)))
+            match self.enclosing {
+                None => {
+                    let token_name: String = name.lexeme.clone();
+                    Err(LoxError::NameError(name.lexeme, format!("Undefined variable {}.", token_name)))
+                }
+
+                Some(ref mut env) => env.assign(name, value)
+            }
         }
     }
 }

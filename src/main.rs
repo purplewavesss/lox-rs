@@ -56,6 +56,7 @@ fn run_file(path: &String) -> i32 {
         },
         Err(_) => {
             println!("{path} could not be read.");
+            io::stdout().flush().unwrap();
             70
         }
     }

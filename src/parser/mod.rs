@@ -39,11 +39,26 @@ impl Parser {
             }
         }
 
+        else if self.match_token(&[LeftBrace]) {
+            Ok(Statement::Block(self.block()?))
+        }
+
         else {
             self.expression_statement()
         }
     }
     
+    /// Consumes print statements.
+    fn print_statement(&mut self) -> Result<Statement, LoxError> {
+        let value: Result<Expr, LoxError> = self.expression();
+        self.consume(Semicolon, "Expect ';' after value.")?;
+        
+        match value {
+            Ok(exp) => Ok(Statement::Print(exp)),
+            Err(err) => Err(err)
+        }
+    }
+
     /// Consumes declarations.
     fn declaration(&mut self) -> Result<Statement, LoxError> {
         let name: Token = self.consume(Identifier, "Expect variable name.")?;
@@ -58,15 +73,16 @@ impl Parser {
         Ok(Statement::Var(name, initializer))
     }
 
-    /// Consumes print statements.
-    fn print_statement(&mut self) -> Result<Statement, LoxError> {
-        let value: Result<Expr, LoxError> = self.expression();
-        self.consume(Semicolon, "Expect ';' after value.")?;
-        
-        match value {
-            Ok(exp) => Ok(Statement::Print(exp)),
-            Err(err) => Err(err)
+    fn block(&mut self) -> Result<Vec<Box<Statement>>, LoxError> {
+        let mut statements: Vec<Box<Statement>> = Vec::new();
+
+        while !self.check(&RightBrace) && !self.is_at_end() {
+            statements.push(Box::new(self.statement()?));
         }
+
+        self.consume(RightBrace, "Expect '}' after block.")?;
+
+        Ok(statements)
     }
 
     /// Consumes expressions.
