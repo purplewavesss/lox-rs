@@ -7,7 +7,8 @@ pub enum Statement {
     Expression(Expr),
     If(Expr, Box<Statement>, Box<Option<Statement>>),
     Print(Expr),
-    Var(Token, Option<Expr>)
+    Var(Token, Option<Expr>),
+    While(Expr, Box<Statement>)
 }
 
 impl Display for Statement {
@@ -26,7 +27,8 @@ impl Display for Statement {
                 Some(els) => write!(f, "{cond} | {} | {}", *then, *els)
             }
             Self::Print(exp) => write!(f, "print {exp}"),
-            Self::Var(name, _) => write!(f, "{}", name.lexeme)
+            Self::Var(name, _) => write!(f, "{}", name.lexeme),
+            Self::While(cond, body) => write!(f, "while {cond} | {body}")
         }
     }
 }

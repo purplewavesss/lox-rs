@@ -33,15 +33,7 @@ impl Parser {
 
     /// Builds ASTs for statements
     fn statement(&mut self) -> Result<Statement, LoxError> {
-        if self.match_token(&[If]) {
-            self.if_statement()
-        }
-
-        else if self.match_token(&[Print]) {
-            self.print_statement()
-        }
-
-        else if self.match_token(&[Var]) {
+        if self.match_token(&[Var]) {
             match self.declaration() {
                 Ok(stmt) => Ok(stmt),
                 Err(error) => {
@@ -49,6 +41,22 @@ impl Parser {
                     Err(error)
                 }
             }
+        }
+        
+        else if self.match_token(&[For]) {
+            self.for_statement()
+        }
+
+        else if self.match_token(&[If]) {
+            self.if_statement()
+        }
+
+        else if self.match_token(&[Print]) {
+            self.print_statement()
+        }
+
+        else if self.match_token(&[While]) {
+            self.while_statement()
         }
 
         else if self.match_token(&[LeftBrace]) {
@@ -114,6 +122,16 @@ impl Parser {
         Ok(statements)
     }
 
+    /// Consumes while statements.
+    fn while_statement(&mut self) -> Result<Statement, LoxError> {
+        self.consume(LeftParen, "Expect '(' after 'while'.")?;
+        let condition: Expr = self.expression()?;
+        self.consume(RightParen, "Expect '(' after 'while'.")?;
+        let body: Statement = self.statement()?;
+
+        Ok(Statement::While(condition, Box::new(body)))
+    }
+
     /// Consumes expressions.
     fn expression_statement(&mut self) -> Result<Statement, LoxError> {
         let expr: Result<Expr, LoxError> = self.expression();
@@ -123,6 +141,56 @@ impl Parser {
             Ok(exp) => Ok(Statement::Expression(exp)),
             Err(err) => Err(err)
         }
+    }
+
+    /// Consumes for statements.
+    fn for_statement(&mut self) -> Result<Statement, LoxError> {
+        self.consume(LeftParen, "Expect '(' after 'for'.")?;
+
+        // Build initializer
+        let mut initializer: Option<Statement> = None;
+
+        if self.match_token(&[Var]) {
+            initializer = Some(self.declaration()?);
+        }
+        else {
+            if !self.match_token(&[Semicolon]) {
+                initializer = Some(self.expression_statement()?);
+            }
+        }
+
+        // Build condition
+        let mut condition: Expr = Expr::Literal(Value::Bool(true));
+
+        if !self.check(&Semicolon) {
+            condition = self.expression()?;
+        }
+        
+        self.consume(Semicolon, "Expect ';' after loop condition.")?;
+
+        // Build increment
+        let mut increment: Option<Expr> = None;
+
+        if !self.check(&RightParen) {
+            increment = Some(self.expression()?);
+        }
+        
+        self.consume(RightParen, "Expect ')' after for clauses.")?;
+
+        // Build body
+        let mut body: Statement = self.statement()?;
+
+        if let Some(expr) = increment {
+            body = Statement::Block(vec![Box::new(body), Box::new(Statement::Expression(expr))]);
+        };
+
+        body = Statement::While(condition, Box::new(body));
+
+        if let Some(expr) = initializer {
+            body = Statement::Block(vec![Box::new(expr), Box::new(body)]);
+        };
+
+        Ok(body)
     }
 
     /// Builds ASTs for expressions
@@ -308,8 +376,8 @@ impl Parser {
     }
 
     /// Returns next parser token
-    fn peek(&self) -> Token {
-        self.tokens[self.current].clone()
+    fn peek(&self) -> &Token {
+        &self.tokens[self.current]
     }
 
     /// Returns previous parser token
@@ -323,7 +391,7 @@ impl Parser {
             return Ok(self.advance());
         }
 
-        Err(LoxError::ParseError(self.peek(), msg.to_string()))
+        Err(LoxError::ParseError(self.peek().clone(), msg.to_string()))
     }
     
     /// Resyncs the parser in the vent of an error

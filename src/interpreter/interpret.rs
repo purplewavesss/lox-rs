@@ -42,10 +42,10 @@ macro_rules! compare {
                 _ => Err(LoxError::ValueError($right, String::from("Not a number.")))
             },
             Value::Float(l_value) => match $right {
-                    Value::Int(r_value) => Ok(Value::Bool(l_value $op r_value as f64)),
-                    Value::Float(r_value) => Ok(Value::Bool(l_value $op r_value)),
-                    Value::Identifier(name) => interpret_expr(build_binary_expr($left, $op_token, $env.get(*name)?), $env),
-                    _ => Err(LoxError::ValueError($right, String::from("Not a number.")))
+                Value::Int(r_value) => Ok(Value::Bool(l_value $op r_value as f64)),
+                Value::Float(r_value) => Ok(Value::Bool(l_value $op r_value)),
+                Value::Identifier(name) => interpret_expr(build_binary_expr($left, $op_token, $env.get(*name)?), $env),
+                _ => Err(LoxError::ValueError($right, String::from("Not a number.")))
             },
             Value::None() => {
                 Err(LoxError::ValueError($left, String::from("You cannot compare a value to a keyword.")))
@@ -111,7 +111,8 @@ fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<(), Lox
         },
         Statement::If(cond, then, els) => Ok(interpret_if(cond, then, els, env)?),
         Statement::Print(print_expr) => Ok(println!("{}", interpret_expr(print_expr, env)?)),
-        Statement::Var(name, identifier) => Ok(interpret_declaration(name, identifier, env)?)
+        Statement::Var(name, identifier) => Ok(interpret_declaration(name, identifier, env)?),
+        Statement::While(cond, body) => Ok(interpret_while(cond, *body, env)?)
     }
 }
 
@@ -124,16 +125,14 @@ fn interpret_block(mut statements: Vec<Box<Statement>>, env: &mut Environment) -
     interpret(statements, &mut block_env)?;
 
     // Add new assignments to current environment
-    Ok(env.add_assignments(block_env))
+    Ok(env.add_assignments(&mut block_env))
 }
 
-/// TODO: Desugar all ? calls so this method can use the tailcall crate.
 fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
     match ast {
         Expr::Literal(value) => Ok(value),
         Expr::Grouping(expr) => interpret_expr(*expr, env),
         Expr::Unary(op, expr) => {
-            let error_expr = expr.clone();
             let expr_value: Value = interpret_expr(*expr, env)?;
 
             match op.token_type {
@@ -142,7 +141,7 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
                         Value::Float(n) => Ok(Value::Float(-n)),
                         Value::Int(n) => Ok(Value::Int(-n)),
                         Value::Identifier(name) => interpret_expr(Expr::Unary(op, Box::new(Expr::Literal(env.get(*name)?))), env), // Recurses with a new expression containing the literal instead of the identifier
-                        _ => Err(LoxError::RuntimeError(*error_expr, String::from("Negation operator cannot be used here.")))
+                        _ => Err(LoxError::ValueError(expr_value, String::from("Negation operator cannot be used here.")))
                     }
                 }
 
@@ -150,19 +149,20 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
                     match expr_value {
                         Value::Bool(b) => Ok(Value::Bool(!b)),
                         Value::Identifier(name) => interpret_expr(Expr::Unary(op, Box::new(Expr::Literal(env.get(*name)?))), env),
-                        _ => Err(LoxError::RuntimeError(*error_expr, String::from("Not operator cannot be used here.")))
+                        _ => Err(LoxError::ValueError(expr_value, String::from("Not operator cannot be used here.")))
                     }
                 }
 
-                _ => Err(LoxError::CompilerBug(Statement::Expression(*error_expr), format!("Unary operator was created with invalid token type {}", op.token_type)))
+                _ => Err(LoxError::CompilerBug(Statement::Expression(Expr::Literal(expr_value)), format!("Unary operator was created with invalid token type {}", op.token_type)))
             }
         },
         Expr::Binary(left, op, right) => {
             let left: Value = interpret_expr(*left, env)?;
             let right: Value = interpret_expr(*right, env)?;
-            
+
             match op.token_type {
                 Minus => calculate!(left, op, right, env, -),
+                // Plus does not use the calculate macro, as it uses
                 Plus => match left {
                     Value::Int(l_value) => match right {
                         Value::Int(r_value) => Ok(Value::Int(l_value + r_value)),
@@ -174,7 +174,7 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
                         Value::Int(r_value) => Ok(Value::Float(l_value + r_value as f64 )),
                         Value::Float(r_value) => Ok(Value::Float(l_value + r_value)),
                         Value::Identifier(name) => interpret_expr(build_binary_expr(left, op, env.get(*name)?), env),
-                     _ => Err(LoxError::ValueError(right, String::from("Not a number.")))
+                        _ => Err(LoxError::ValueError(right, String::from("Not a number.")))
                     },
                     Value::Identifier(name) => interpret_expr(build_binary_expr(env.get(*name)?, op, right), env),
                     Value::Str(l_value) => {
@@ -202,14 +202,14 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
                 And => {
                     let left_value: Value = interpret_expr(*left, env)?;
                     let right_value: Value = interpret_expr(*right, env)?;
-                    Ok(Value::Bool(get_value_truth(left_value, env)? && get_value_truth(right_value, env)?)) 
+                    Ok(Value::Bool(get_value_truth(left_value, env)? && get_value_truth(right_value, env)?))
                 },
                 Or => {
                     let left_value: Value = interpret_expr(*left, env)?;
                     let right_value: Value = interpret_expr(*right, env)?;
-                    Ok(Value::Bool(get_value_truth(left_value, env)? || get_value_truth(right_value, env)?)) 
+                    Ok(Value::Bool(get_value_truth(left_value, env)? || get_value_truth(right_value, env)?))
                 },
-                _ => Err(LoxError::CompilerBug(Statement::Expression(Expr::Logical(left.clone(), op, right.clone())), 
+                _ => Err(LoxError::CompilerBug(Statement::Expression(Expr::Logical(left.clone(), op, right.clone())),
                                                String::from("Invalid operator used in Expr::Logical")))
             }
         }
@@ -224,9 +224,9 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
 
 fn interpret_if(cond: Expr, then: Box<Statement>, els: Box<Option<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
     let cond_value: Value = interpret_expr(cond, env)?;
-    
+
     if get_value_truth(cond_value, env)? {
-            interpret_statement(*then, env)
+        interpret_statement(*then, env)
     }
 
     else {
@@ -249,13 +249,21 @@ fn interpret_declaration(name: Token, identifier: Option<Expr>, env: &mut Enviro
     }
 }
 
+fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> Result<(), LoxError> {
+    while get_value_truth(interpret_expr(condition.clone(), env)?, env)? {
+        interpret_statement(body.clone(), env)?;
+    }
+
+    Ok(())
+}
+
 fn get_value_truth(value: Value, env: &Environment) -> Result<bool, LoxError> {
     match value {
         Value::Bool(truth) => Ok(truth),
         Value::Identifier(token) => get_value_truth(env.get(*token)?, env),
         Value::Nil() => Ok(false),
         _ => Err(LoxError::ValueError(value, String::from("Value has no truthiness!")))
-    }   
+    }
 }
 
 fn build_binary_expr(left: Value, op: Token, right: Value) -> Expr {
