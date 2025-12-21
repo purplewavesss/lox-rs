@@ -1,9 +1,6 @@
 use crate::LoxError;
-use crate::expr::Expr;
 use crate::interpreter::environment::Environment;
-use crate::scanning::token::{Token, Value};
-use crate::scanning::token_type::TokenType::*;
-use crate::statement::Statement;
+use crate::types::{{expr::Expr, statement::Statement, value::Value, token::Token, token_type::TokenType::*}};
 
 /// Generates codes for calculations
 macro_rules! calculate {
@@ -116,13 +113,10 @@ fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<(), Lox
     }
 }
 
-fn interpret_block(mut statements: Vec<Box<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
-    let statements: Vec<Statement> = statements.drain(..)
-                                               .map(|stmt| *stmt)
-                                               .collect();
+fn interpret_block(statements: Box<Vec<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
     let mut block_env: Environment = Environment::get_block_env(env);
 
-    interpret(statements, &mut block_env)?;
+    interpret(*statements, &mut block_env)?;
 
     // Add new assignments to current environment
     Ok(env.add_assignments(&mut block_env))

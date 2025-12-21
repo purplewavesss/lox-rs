@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::{LoxError, scanning::token::{Token, Value}};
+use crate::{LoxError, types::{token::Token, value::Value}};
 
 #[derive(Clone)]
 pub struct Environment {
@@ -65,6 +65,7 @@ impl Environment {
         }
     }
 
+    /// Adds assignments from block environments to current environment
     pub fn add_assignments(&mut self, block_env: &mut Environment) {
         for (name, value) in block_env.assignments.drain() {
             // Propagate values forward if this is a block environment

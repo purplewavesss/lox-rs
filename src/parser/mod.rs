@@ -1,7 +1,5 @@
 use crate::LoxError;
-use crate::expr::Expr;
-use crate::scanning::{token::{Token, Value}, token_type::TokenType::{self, *}};
-use crate::statement::Statement;
+use crate::types::{expr::Expr, token::Token, value::Value, token_type::TokenType::{self, *}, statement::Statement};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -110,16 +108,16 @@ impl Parser {
     }
 
     /// Consumes blocks.
-    fn block(&mut self) -> Result<Vec<Box<Statement>>, LoxError> {
-        let mut statements: Vec<Box<Statement>> = Vec::new();
+    fn block(&mut self) -> Result<Box<Vec<Statement>>, LoxError> {
+        let mut statements: Vec<Statement> = Vec::new();
 
         while !self.check(&RightBrace) && !self.is_at_end() {
-            statements.push(Box::new(self.statement()?));
+            statements.push(self.statement()?);
         }
 
         self.consume(RightBrace, "Expect '}' after block.")?;
 
-        Ok(statements)
+        Ok(Box::new(statements))
     }
 
     /// Consumes while statements.
@@ -181,13 +179,13 @@ impl Parser {
         let mut body: Statement = self.statement()?;
 
         if let Some(expr) = increment {
-            body = Statement::Block(vec![Box::new(body), Box::new(Statement::Expression(expr))]);
+            body = Statement::Block(Box::new(vec![body, Statement::Expression(expr)]));
         };
 
         body = Statement::While(condition, Box::new(body));
 
         if let Some(expr) = initializer {
-            body = Statement::Block(vec![Box::new(expr), Box::new(body)]);
+            body = Statement::Block(Box::new(vec![expr, body]));
         };
 
         Ok(body)
@@ -298,6 +296,7 @@ impl Parser {
         Ok(exp)
     }
     
+    /// Builds ASTs for arithmetic expressions
     fn unary(&mut self) -> Result<Expr, LoxError> {
         if self.match_token(&[Not, Minus]) {
             let op: Token = self.previous();
@@ -305,9 +304,49 @@ impl Parser {
             return Ok(Expr::Unary(op, Box::new(right)));
         }
 
-        self.primary()
+        self.call()
     }
 
+    /// Builds ASTs for function calls
+    fn call(&mut self) -> Result<Expr, LoxError> {
+        let mut expr: Expr = self.primary()?;
+
+        loop {
+            if self.match_token(&[LeftParen]) {
+                expr = self.parse_arguments(expr)?;
+            }
+
+            else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    /// Parses function arguments.
+    fn parse_arguments(&mut self, callee: Expr) -> Result<Expr, LoxError> {
+        let mut arguments: Vec<Expr> = Vec::new();
+
+        if !self.check(&RightParen) {
+            loop {
+                arguments.push(self.expression()?);
+
+                if arguments.len() > 255 {
+                    return Err(LoxError::ArgumentError(self.peek().clone(), String::from("Can't have more than 255 arguments.")))
+                }
+
+                if !self.match_token(&[Comma]) {
+                    break;
+                }
+            }
+        }
+
+        let paren: Token = self.consume(RightParen, "Expect ')' after arguments.")?;
+        Ok(Expr::Call(Box::new(callee), paren, Box::new(arguments)))
+    }
+
+    /// Parses literals.
     fn primary(&mut self) -> Result<Expr, LoxError> {
         match self.tokens[self.current].token_type {
             False => { 

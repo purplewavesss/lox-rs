@@ -4,22 +4,21 @@ use std::process;
 use std::fs;
 use std::str;
 use std::io;
-use crate::expr::Expr;
 use crate::interpreter::interpret::interpret;
 use crate::parser::Parser;
 use crate::scanning::scanner::Scanner;
-use crate::scanning::token::Token;
-use crate::scanning::token::Value;
-use crate::scanning::token_type::TokenType;
-use crate::statement::Statement;
+use crate::types::expr::Expr;
+use crate::types::statement::Statement;
+use crate::types::token::Token;
+use crate::types::token_type::TokenType;
+use crate::types::value::Value;
 use thiserror::Error;
 use crate::interpreter::environment::Environment;
 
 pub mod scanning;
-pub mod expr;
 pub mod parser;
 pub mod interpreter;
-pub mod statement;
+pub mod types;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -189,8 +188,12 @@ fn report_error_type(error: LoxError) -> i32 {
             let at: String = format!(" for '{name}'");
             report(String::from("Name Error"), &at, &msg);
             5
+        },
+        LoxError::ArgumentError(name, msg) => {
+            let at: String = format!(" for '{}'", name.lexeme);
+            report(String::from("Argument Error"), &at, &msg);
+            6
         }
-
     }
 }
 
@@ -205,5 +208,7 @@ pub enum LoxError {
     #[error("Compiler bug: ")]
     CompilerBug(Statement, String),
     #[error("Name error: ")]
-    NameError(String, String)
+    NameError(String, String),
+    #[error("Argument error: ")]
+    ArgumentError(Token, String)
 }

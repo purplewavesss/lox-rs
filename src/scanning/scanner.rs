@@ -1,6 +1,5 @@
 use std::num::{ParseFloatError, ParseIntError};
-use crate::scanning::token::{Token, Value};
-use crate::scanning::token_type::TokenType::{self, *};
+use crate::types::{token::Token, value::Value, token_type::TokenType::{self, *}};
 use crate::throw;
 use ternop::ternary;
 
