@@ -31,7 +31,9 @@ impl Parser {
 
     /// Builds ASTs for statements
     fn statement(&mut self) -> Result<Statement, LoxError> {
-        if self.match_token(&[Var]) {
+        if self.match_token(&[Fun]) { self.function_declaration("function") }
+
+        else if self.match_token(&[Var]) {
             match self.declaration() {
                 Ok(stmt) => Ok(stmt),
                 Err(error) => {
@@ -41,29 +43,13 @@ impl Parser {
             }
         }
         
-        else if self.match_token(&[For]) {
-            self.for_statement()
-        }
-
-        else if self.match_token(&[If]) {
-            self.if_statement()
-        }
-
-        else if self.match_token(&[Print]) {
-            self.print_statement()
-        }
-
-        else if self.match_token(&[While]) {
-            self.while_statement()
-        }
-
-        else if self.match_token(&[LeftBrace]) {
-            Ok(Statement::Block(self.block()?))
-        }
-
-        else {
-            self.expression_statement()
-        }
+        else if self.match_token(&[For]) { self.for_statement() }
+        else if self.match_token(&[If]) { self.if_statement() }
+        else if self.match_token(&[Print]) { self.print_statement() }
+        else if self.match_token(&[Return]) { self.return_statement() }
+        else if self.match_token(&[While]) { self.while_statement() }
+        else if self.match_token(&[LeftBrace]) { Ok(Statement::Block(self.block()?)) }
+        else { self.expression_statement() }
     }
 
     /// Consumes print statements.
@@ -189,6 +175,53 @@ impl Parser {
         };
 
         Ok(body)
+    }
+
+    /// Consumes functions.
+    fn function_declaration(&mut self, kind: &str) -> Result<Statement, LoxError> {
+        let name: Token = self.consume(Identifier, format!("Expect {kind} name.").as_str())?;
+        self.consume(LeftParen, format!("Expect '(' after {kind} name.").as_str())?;
+        let mut params: Vec<Token> = Vec::new();
+
+        // Consume params.
+        if !self.check(&RightParen) {
+            loop {
+                if params.len() >= 255 {
+                    return Err(LoxError::ArgumentError(Statement::Expression(
+                                                        Expr::Literal(
+                                                        Value::Identifier(
+                                                        Box::new(self.peek().clone())
+                                                       ))),
+                                                       String::from("Can't have more than 255 parameters.")));
+                }
+                
+                params.push(self.consume(Identifier, "Expect parameter name.")?);
+
+                if !self.match_token(&[Comma]) {
+                    break;
+                }
+            }
+        }
+        self.consume(RightParen, "Expect ')' after parameters.")?;
+
+        // Consume body.
+        self.consume(LeftBrace, format!("Expect '{{' before {kind} body.").as_str())?;
+        let body: Box<Vec<Statement>> = self.block()?;
+
+        Ok(Statement::FunDeclaration(name, params, body))
+    }
+
+    // Consume return statements.
+    fn return_statement(&mut self) -> Result<Statement, LoxError> {
+        let mut value: Expr = Expr::Literal(Value::Nil());
+
+        // Interpret return value, if it exists.
+        if !self.check(&Semicolon) {
+            value = self.expression()?;
+        }
+
+        self.consume(Semicolon, "Expect ';' after return value.")?;
+        Ok(Statement::Return(value))
     }
 
     /// Builds ASTs for expressions
@@ -333,7 +366,8 @@ impl Parser {
                 arguments.push(self.expression()?);
 
                 if arguments.len() > 255 {
-                    return Err(LoxError::ArgumentError(self.peek().clone(), String::from("Can't have more than 255 arguments.")))
+                    return Err(LoxError::ArgumentError(Statement::Expression(callee), 
+                                                       String::from("Can't have more than 255 arguments.")))
                 }
 
                 if !self.match_token(&[Comma]) {
@@ -342,8 +376,8 @@ impl Parser {
             }
         }
 
-        let paren: Token = self.consume(RightParen, "Expect ')' after arguments.")?;
-        Ok(Expr::Call(Box::new(callee), paren, Box::new(arguments)))
+        self.consume(RightParen, "Expect ')' after arguments.")?;
+        Ok(Expr::Call(Box::new(callee), Box::new(arguments)))
     }
 
     /// Parses literals.
@@ -367,7 +401,7 @@ impl Parser {
             },
             Identifier => {
                 self.advance();
-                Ok(Expr::Variable(self.previous().clone()))
+                Ok(Expr::Variable(self.previous()))
             }
             LeftParen => {
                 self.advance();

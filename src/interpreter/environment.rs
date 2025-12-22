@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, ops};
 use crate::{LoxError, types::{token::Token, value::Value}};
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Environment {
     values: HashMap<String, Value>,
     assignments: HashMap<String, Value>,
@@ -13,6 +13,33 @@ impl Environment {
     pub fn new() -> Self {
         Self { 
             values: HashMap::new(),
+            assignments: HashMap::new(),
+            declared_here: HashSet::new(),
+            is_block_env: false
+        }
+    }
+
+    /// Constructs a new environment from a vector of tokens and values. This does not perform arity checks: it simply returns when a vector is drained.
+    pub fn build(names: &Vec<Token>, values: &Vec<Value>) -> Self {
+        let mut build_values: HashMap<String, Value> = HashMap::new();
+        let mut names = names.iter();
+        let mut values = values.iter();
+
+        loop {
+            let next_name: Option<&Token> = names.next();
+            let next_value: Option<&Value> = values.next();
+
+            if next_name.is_none() || next_value.is_none() {
+                break;
+            }
+
+            let next_name: Token = next_name.unwrap().clone();
+            let next_value: Value = next_value.unwrap().clone();
+            build_values.insert(next_name.lexeme, next_value);
+        }
+
+        Self {
+            values: build_values,
             assignments: HashMap::new(),
             declared_here: HashSet::new(),
             is_block_env: false
@@ -36,14 +63,14 @@ impl Environment {
     }
     
     /// Retrieves an envrionment binding
-    pub fn get(&self, name: Token) -> Result<Value, LoxError> {
+    pub fn get(&self, name: &Token) -> Result<Value, LoxError> {
         if self.values.contains_key(&name.lexeme) {
             Ok(self.values[&name.lexeme].clone())
         }
 
         else {
             let token_name: String = name.lexeme.clone();
-            Err(LoxError::NameError(name.lexeme, format!("Undefined variable {}.", token_name)))
+            Err(LoxError::NameError(token_name, format!("Undefined variable.")))
         }
     }
 
@@ -75,5 +102,14 @@ impl Environment {
 
             self.values.insert(name, value);
         }
+    }
+}
+
+impl ops::Add<Environment> for Environment {
+    type Output = Environment;
+
+    fn add(mut self, _rhs: Environment) -> Environment {
+        self.values.extend(_rhs.values);
+        self
     }
 }

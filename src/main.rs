@@ -6,7 +6,7 @@ use std::str;
 use std::io;
 use crate::interpreter::interpret::interpret;
 use crate::parser::Parser;
-use crate::scanning::scanner::Scanner;
+use crate::scanning::Scanner;
 use crate::types::expr::Expr;
 use crate::types::statement::Statement;
 use crate::types::token::Token;
@@ -189,8 +189,8 @@ fn report_error_type(error: LoxError) -> i32 {
             report(String::from("Name Error"), &at, &msg);
             5
         },
-        LoxError::ArgumentError(name, msg) => {
-            let at: String = format!(" for '{}'", name.lexeme);
+        LoxError::ArgumentError(args, msg) => {
+            let at: String = format!(" for '{:?}'", args);
             report(String::from("Argument Error"), &at, &msg);
             6
         }
@@ -210,5 +210,5 @@ pub enum LoxError {
     #[error("Name error: ")]
     NameError(String, String),
     #[error("Argument error: ")]
-    ArgumentError(Token, String)
+    ArgumentError(Statement, String)
 }

@@ -1,7 +1,7 @@
 use strum_macros::Display;
 use crate::types::{token::Token, value::Value};
 
-#[derive(Clone, Debug, Display)]
+#[derive(Clone, Debug, Display, PartialEq)]
 pub enum Expr {
     // e.g. "5" or "test"
     Literal(Value),
@@ -14,7 +14,7 @@ pub enum Expr {
     // e.g. true or false
     Logical(Box<Expr>, Token, Box<Expr>),
     // e.g. function()
-    Call(Box<Expr>, Token, Box<Vec<Expr>>),
+    Call(Box<Expr>, Box<Vec<Expr>>),
     // e.g. a
     Variable(Token),
     // e.g. a = 5

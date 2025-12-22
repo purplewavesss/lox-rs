@@ -15,6 +15,16 @@ impl Token {
         let has_literal: bool = literal != Value::None();
         Token { token_type, lexeme, literal, line, has_literal }
     }
+
+    pub fn from_value(name: &str, literal: Value, line: usize) -> Self {
+        Self {
+            token_type: TokenType::Identifier,
+            lexeme: String::from(name),
+            literal,
+            line,
+            has_literal: true
+        }
+    }
 }
 
 impl fmt::Display for Token {
