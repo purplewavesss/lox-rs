@@ -96,7 +96,7 @@ macro_rules! equal {
 pub fn interpret(program: Vec<Statement>, env: &mut Environment) -> Result<Value, LoxError> {
     for stmt in program {
         let result = interpret_statement(stmt, env)?;
-        
+
         if result != Value::Nil() {
             return Ok(result)
         }
@@ -105,11 +105,12 @@ pub fn interpret(program: Vec<Statement>, env: &mut Environment) -> Result<Value
     Ok(Value::Nil())
 }
 
+/// Matches and interprets each type of statement
 fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<Value, LoxError> {
     match stmt {
         Statement::Block(statements) => interpret_block(statements, env),
         Statement::FunDeclaration(name, args, body) => {
-            interpret_function(name, args, body, env);
+            interpret_closure(name, args, body, env)?;
             Ok(Value::Nil())
         },
         Statement::Expression(expr) => {
@@ -130,6 +131,7 @@ fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<Value, 
     }
 }
 
+// Interprets a block in a new block environment.
 fn interpret_block(statements: Box<Vec<Statement>>, env: &mut Environment) -> Result<Value, LoxError> {
     let mut block_env: Environment = Environment::get_block_env(env);
     let result: Value = interpret(*statements, &mut block_env)?;
@@ -140,6 +142,7 @@ fn interpret_block(statements: Box<Vec<Statement>>, env: &mut Environment) -> Re
     Ok(result)
 }
 
+// Interprets the value of an expression.
 fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
     match ast {
         Expr::Literal(value) => Ok(value),
@@ -228,13 +231,14 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
         Expr::Variable(name) => env.get(&name),
         Expr::Assign(name, exp) => {
             let value: Value = interpret_expr(*exp, env)?;
-            env.assign(name, &value)?;
-            Ok(value)
+            env.assign(name, value)?;
+            Ok(Value::Nil())
         },
         Expr::Call(name, args) => interpret_call(name, args, env)
     }
 }
 
+// Interprets an if statement in a new block environment.
 fn interpret_if(cond: Expr, then: Box<Statement>, els: Box<Option<Statement>>, env: &mut Environment) -> Result<Value, LoxError> {
     let cond_value: Value = interpret_expr(cond, env)?;
 
@@ -250,18 +254,21 @@ fn interpret_if(cond: Expr, then: Box<Statement>, els: Box<Option<Statement>>, e
     }
 }
 
+// Interprets a declaration and adds it to the current environment.
 fn interpret_declaration(name: Token, identifier: Option<Expr>, env: &mut Environment) -> Result<(), LoxError> {
     match identifier {
-        None => Ok(env.define(name.lexeme, Value::Nil())),
+        None => Ok(env.define_local(name.lexeme, Value::Nil())),
         Some(exp) => {
             match interpret_expr(exp, env) {
-                Ok(value) => Ok(env.define(name.lexeme, value)),
+                Ok(value) => Ok(env.define_local(name.lexeme, value)),
                 Err(error) => Err(error)
             }
         }
     }
 }
 
+
+// Interprets a while loop in a block environment.
 fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> Result<Value, LoxError> {
     while get_value_truth(interpret_expr(condition.clone(), env)?, env)? {
         let result = interpret_statement(body.clone(), env)?;
@@ -274,24 +281,22 @@ fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> R
     Ok(Value::Nil())
 }
 
-fn interpret_function(name: Token, args: Vec<Token>, body: Box<Vec<Statement>>, env: &mut Environment) {
-    env.define(name.lexeme.clone(), 
-               Value::Callable(Box::new(LoxCallable::Closure(args, body, env.clone()))));
-}
-
-fn interpret_call(name: Box<Expr>, args: Box<Vec<Expr>>, env: &mut Environment) -> Result<Value, LoxError> {
-    // Get callable name
-    let name: Value = interpret_expr(*name, env)?;
-    let name_result: Result<Box<Token>, Value> = name.into_identifier();
-            
-    if let Err(value) = name_result {
-        return Err(LoxError::ValueError(value, String::from("Name given was not callable.")));
+fn interpret_closure(name: Token, args: Vec<Token>, body: Box<Vec<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
+    if env.is_global() {
+        env.define_global(name.lexeme.clone(),
+                                 Value::Callable(Box::new(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env)))))
     }
 
-    let name: Token = *name_result.unwrap();
+    else {
+        Ok(env.define_local(name.lexeme.clone(),
+                                   Value::Callable(Box::new(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env))))))
+    }
+}
 
+// Interprets and calls a callable
+fn interpret_call(name: Box<Expr>, args: Box<Vec<Expr>>, env: &mut Environment) -> Result<Value, LoxError> {
     // Get callable
-    let callable: Value = env.get(&name)?;
+    let callable: Value = interpret_expr(*name.clone(), env)?;
     let callable_result: Result<Box<LoxCallable>, Value> = callable.into_callable();
 
     if let Err(value) = callable_result {
@@ -302,14 +307,15 @@ fn interpret_call(name: Box<Expr>, args: Box<Vec<Expr>>, env: &mut Environment) 
 
     // Interpret arguments
     if !callable.check_arity(&*args) {
-        return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(name)), String::from("Invalid arity for function.")));
+        return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(callable.get_name())), String::from("Invalid arity for function.")));
     }
 
     let args = interpret_args(*args, env)?;
 
-    callable.call(args)
+    callable.call(args, env)
 }
 
+// Interprets a vector of function arguments.
 fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, LoxError> {
     let mut interpreted_args: Vec<Value> = Vec::new();
 
@@ -320,6 +326,7 @@ fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, 
     Ok(interpreted_args)
 }
 
+// Gets the truthiness of a value
 fn get_value_truth(value: Value, env: &Environment) -> Result<bool, LoxError> {
     match value {
         Value::Bool(truth) => Ok(truth),
@@ -329,6 +336,7 @@ fn get_value_truth(value: Value, env: &Environment) -> Result<bool, LoxError> {
     }
 }
 
+// Builds a new binary expression from given values.
 fn build_binary_expr(left: Value, op: Token, right: Value) -> Expr {
     Expr::Binary(Box::new(Expr::Literal(left)),
                  op,

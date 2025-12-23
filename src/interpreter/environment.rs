@@ -1,20 +1,24 @@
 use std::{collections::{HashMap, HashSet}, ops};
 use crate::{LoxError, types::{token::Token, value::Value}};
+use crate::types::expr::Expr;
+use crate::types::statement::Statement;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Environment {
-    values: HashMap<String, Value>,
+    locals: HashMap<String, Value>,
+    globals: HashMap<String, Value>,
     assignments: HashMap<String, Value>,
-    declared_here: HashSet<String>,
+    declared_here_in_block: HashSet<String>,
     is_block_env: bool
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self { 
-            values: HashMap::new(),
+            locals: HashMap::new(),
+            globals: HashMap::new(),
             assignments: HashMap::new(),
-            declared_here: HashSet::new(),
+            declared_here_in_block: HashSet::new(),
             is_block_env: false
         }
     }
@@ -39,9 +43,10 @@ impl Environment {
         }
 
         Self {
-            values: build_values,
+            locals: build_values,
+            globals: HashMap::new(),
             assignments: HashMap::new(),
-            declared_here: HashSet::new(),
+            declared_here_in_block: HashSet::new(),
             is_block_env: false
         }
     }
@@ -49,23 +54,49 @@ impl Environment {
     /// Creates an environment from an existing environment, with assignments wiped.
     pub fn get_block_env(env: &Environment) -> Self {
         Self {
-            values: env.values.clone(),
+            locals: env.locals.clone(),
+            globals: env.globals.clone(),
             assignments: HashMap::new(),
-            declared_here: HashSet::new(),
+            declared_here_in_block: HashSet::new(),
             is_block_env: true
         }
     }
 
-    /// Defines an environment binding
-    pub fn define(&mut self, name: String, value: Value) {
-        self.values.insert(name.clone(), value);
-        self.declared_here.insert(name);
+    /// Adds the globals from another environment.
+    pub fn add_globals(&mut self, other: &Environment) {
+        self.globals.extend(other.globals.clone());
+    }
+
+    /// Defines a local environment binding
+    pub fn define_local(&mut self, name: String, value: Value) {
+        if self.is_block_env {
+            self.declared_here_in_block.insert(name.clone());
+        }
+        
+        self.locals.insert(name, value);
+    }
+
+    /// Defines a global (exists in all function calls) environment binding
+    pub fn define_global(&mut self, name: String, value: Value) -> Result<(), LoxError> {
+        if self.is_block_env {
+            Err(LoxError::CompilerBug(Statement::Expression(Expr::Literal(Value::Str(name))),
+                String::from("Globals cannot be defined in local scope.")))
+        }
+        
+        else {
+            self.globals.insert(name.clone(), value);
+            Ok(())
+        }
     }
     
     /// Retrieves an envrionment binding
     pub fn get(&self, name: &Token) -> Result<Value, LoxError> {
-        if self.values.contains_key(&name.lexeme) {
-            Ok(self.values[&name.lexeme].clone())
+        if self.locals.contains_key(&name.lexeme) {
+            Ok(self.locals[&name.lexeme].clone())
+        }
+        
+        else if self.globals.contains_key(&name.lexeme) {
+            Ok(self.globals[&name.lexeme].clone())
         }
 
         else {
@@ -75,15 +106,30 @@ impl Environment {
     }
 
     /// Reassigns an existing environment binding.
-    pub fn assign(&mut self, name: Token, value: &Value) -> Result<(), LoxError> {
-        if self.values.contains_key(&name.lexeme) {
-            self.values.insert(name.lexeme.clone(), value.clone());
-
-            if self.is_block_env && !self.declared_here.contains(&name.lexeme) {
-                self.assignments.insert(name.lexeme, value.clone());
+    pub fn assign(&mut self, name: Token, value: Value) -> Result<(), LoxError> {
+        // Locals case
+        if self.locals.contains_key(&name.lexeme) {
+            if self.is_block_env && !self.declared_here_in_block.contains(&name.lexeme) {
+                self.assignments.insert(name.lexeme.clone(), value.clone());
             }
 
+            self.locals.insert(name.lexeme, value);
+
             Ok(())
+        }
+
+        // Globals case
+        else if self.globals.contains_key(&name.lexeme) {
+            // Shadow the value in locals if declared in block
+            if self.is_block_env {
+                self.locals.insert(name.lexeme, value);
+                Ok(())
+            }
+
+            else {
+                self.globals.insert(name.lexeme, value);
+                Ok(())
+            }
         }
 
         else {
@@ -96,12 +142,17 @@ impl Environment {
     pub fn add_assignments(&mut self, block_env: &mut Environment) {
         for (name, value) in block_env.assignments.drain() {
             // Propagate values forward if this is a block environment
-            if self.is_block_env && !self.declared_here.contains(&name) {
+            if self.is_block_env && !self.declared_here_in_block.contains(&name) {
                 self.assignments.insert(name.clone(), value.clone());
             }
 
-            self.values.insert(name, value);
+            self.locals.insert(name, value);
         }
+    }
+
+    /// Returns whether an environment is defined in global or local scope
+    pub fn is_global(&self) -> bool {
+        !self.is_block_env
     }
 }
 
@@ -109,7 +160,8 @@ impl ops::Add<Environment> for Environment {
     type Output = Environment;
 
     fn add(mut self, _rhs: Environment) -> Environment {
-        self.values.extend(_rhs.values);
+        self.locals.extend(_rhs.locals);
+        self.globals.extend(_rhs.globals);
         self
     }
 }

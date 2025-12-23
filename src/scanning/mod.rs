@@ -236,6 +236,7 @@ impl Scanner {
             "else" => Else,
             "false" => False,
             "for" => For,
+            "fun" => Fun,
             "if" => If,
             "nil" => Nil,
             "or" => Or,
