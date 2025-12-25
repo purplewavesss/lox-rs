@@ -1,8 +1,7 @@
 use crate::LoxError;
 use crate::interpreter::environment::Environment;
-use crate::types::callable::LoxCallable;
-use crate::types::class::LoxClass;
-use crate::types::{{expr::Expr, statement::Statement, value::Value, token::Token, token_type::TokenType::*}};
+use crate::types::values::{callable::LoxCallable, value::Value, class::LoxClass};
+use crate::types::{{expr::Expr, statement::Statement, token::Token, token_type::TokenType::*}};
 
 /// Generates codes for calculations
 macro_rules! calculate {

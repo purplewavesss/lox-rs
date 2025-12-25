@@ -1,5 +1,5 @@
 use std::{collections::{HashMap, HashSet}, ops};
-use crate::{LoxError, interpreter::stdlib, types::{token::Token, value::Value}};
+use crate::{LoxError, interpreter::stdlib, types::{token::Token, values::value::Value}};
 use crate::types::expr::Expr;
 use crate::types::statement::Statement;
 

@@ -1,5 +1,5 @@
 use strum_macros::Display;
-use crate::types::{token::Token, value::Value};
+use crate::types::{token::Token, values::value::Value};
 
 #[derive(Clone, Debug, Display, PartialEq)]
 pub enum Expr {

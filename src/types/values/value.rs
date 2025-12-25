@@ -1,6 +1,7 @@
 use std::fmt;
 use enum_as_inner::EnumAsInner;
-use crate::types::{callable::LoxCallable, class::LoxClass, token::Token};
+use crate::types::values::{callable::LoxCallable, class::LoxClass};
+use crate::types::token::Token;
 
 #[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum Value {

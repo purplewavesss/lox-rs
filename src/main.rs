@@ -11,7 +11,7 @@ use crate::types::expr::Expr;
 use crate::types::statement::Statement;
 use crate::types::token::Token;
 use crate::types::token_type::TokenType;
-use crate::types::value::Value;
+use crate::types::values::value::Value;
 use thiserror::Error;
 use crate::interpreter::environment::Environment;
 

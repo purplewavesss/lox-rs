@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::UNIX_EPOCH};
 use std::time::{Duration, SystemTime};
 use crate::LoxError;
-use crate::types::{callable::LoxCallable, value::Value};
+use crate::types::values::{callable::LoxCallable, value::Value};
 
 pub fn get_stdlib() -> HashMap<String, Value> {
     HashMap::from([
