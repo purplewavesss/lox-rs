@@ -1,5 +1,5 @@
 use std::{collections::{HashMap, HashSet}, ops};
-use crate::{LoxError, types::{token::Token, value::Value}};
+use crate::{LoxError, interpreter::stdlib, types::{token::Token, value::Value}};
 use crate::types::expr::Expr;
 use crate::types::statement::Statement;
 
@@ -16,7 +16,7 @@ impl Environment {
     pub fn new() -> Self {
         Self { 
             locals: HashMap::new(),
-            globals: HashMap::new(),
+            globals: stdlib::get_stdlib(),
             assignments: HashMap::new(),
             declared_here_in_block: HashSet::new(),
             is_block_env: false

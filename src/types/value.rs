@@ -1,6 +1,6 @@
 use std::fmt;
 use enum_as_inner::EnumAsInner;
-use crate::types::{callable::LoxCallable, token::Token};
+use crate::types::{callable::LoxCallable, class::LoxClass, token::Token};
 
 #[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum Value {
@@ -10,6 +10,7 @@ pub enum Value {
     Float(f64),
     Bool(bool),
     Callable(Box<LoxCallable>),
+    Class(LoxClass),
     Nil(),
     None()
 }
@@ -22,7 +23,8 @@ impl fmt::Display for Value {
             Self::Int(value) => write!(f, "{value}"),
             Self::Float(value) => write!(f, "{value}"),
             Self::Bool(bool) => write!(f, "{bool}"),
-            Self::Callable(_) => write!(f, "<function>"),
+            Self::Callable(callable) => callable.fmt(f),
+            Self::Class(class) => class.fmt(f),
             Self::Nil() => write!(f, ""),
             Self::None() => write!(f, "")
         }

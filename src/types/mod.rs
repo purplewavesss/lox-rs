@@ -4,3 +4,4 @@ pub mod token;
 pub mod value;
 pub mod expr;
 pub mod callable;
+pub mod class;

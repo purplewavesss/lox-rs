@@ -31,8 +31,8 @@ impl Parser {
 
     /// Builds ASTs for statements
     fn statement(&mut self) -> Result<Statement, LoxError> {
-        if self.match_token(&[Fun]) { self.function_declaration("function") }
-
+        if self.match_token(&[Class]) { self.class_declaration() }
+        else if self.match_token(&[Fun]) { self.function_declaration("function") }
         else if self.match_token(&[Var]) {
             match self.declaration() {
                 Ok(stmt) => Ok(stmt),
@@ -42,7 +42,6 @@ impl Parser {
                 }
             }
         }
-        
         else if self.match_token(&[For]) { self.for_statement() }
         else if self.match_token(&[If]) { self.if_statement() }
         else if self.match_token(&[Print]) { self.print_statement() }
@@ -222,6 +221,24 @@ impl Parser {
 
         self.consume(Semicolon, "Expect ';' after return value.")?;
         Ok(Statement::Return(value))
+    }
+
+    // Consumes class declarations.
+    fn class_declaration(&mut self) -> Result<Statement, LoxError> {
+        // Get names
+        let name: Token = self.consume(Identifier, "Expect class name.")?;
+        self.consume(LeftBrace, "Expect '{' before class body.")?;
+
+        // Get body
+        let mut methods: Vec<Statement> = Vec::new();
+
+        while !self.check(&RightBrace) && !self.is_at_end() {
+            methods.push(self.function_declaration("method")?);
+        }
+
+        self.consume(RightBrace, "Expect '}' after class body.")?;
+
+        Ok(Statement::Class(name, Box::new(methods)))
     }
 
     /// Builds ASTs for expressions

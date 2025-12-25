@@ -1,6 +1,7 @@
 use crate::LoxError;
 use crate::interpreter::environment::Environment;
 use crate::types::callable::LoxCallable;
+use crate::types::class::LoxClass;
 use crate::types::{{expr::Expr, statement::Statement, value::Value, token::Token, token_type::TokenType::*}};
 
 /// Generates codes for calculations
@@ -109,6 +110,10 @@ pub fn interpret(program: Vec<Statement>, env: &mut Environment) -> Result<Value
 fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<Value, LoxError> {
     match stmt {
         Statement::Block(statements) => interpret_block(statements, env),
+        Statement::Class(name, methods) => {
+            interpret_class(name, *methods, env)?;
+            Ok(Value::Nil())
+        },
         Statement::FunDeclaration(name, args, body) => {
             interpret_closure(name, args, body, env)?;
             Ok(Value::Nil())
@@ -183,23 +188,36 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
                         Value::Int(r_value) => Ok(Value::Int(l_value + r_value)),
                         Value::Float(r_value) => Ok(Value::Float(l_value as f64 + r_value)),
                         Value::Identifier(name) => interpret_expr(build_binary_expr(left, op, env.get(&*name)?), env),
+                        Value::Str(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
                         _ => Err(LoxError::ValueError(right, String::from("Not a number.")))
                     },
                     Value::Float(l_value) => match right {
                         Value::Int(r_value) => Ok(Value::Float(l_value + r_value as f64 )),
                         Value::Float(r_value) => Ok(Value::Float(l_value + r_value)),
                         Value::Identifier(name) => interpret_expr(build_binary_expr(left, op, env.get(&*name)?), env),
+                        Value::Str(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
                         _ => Err(LoxError::ValueError(right, String::from("Not a number.")))
                     },
                     Value::Identifier(name) => interpret_expr(build_binary_expr(env.get(&*name)?, op, right), env),
-                    Value::Str(l_value) => {
+                    Value::Bool(l_value) => {
                         match right {
-                            Value::Str(r_value) => Ok(Value::Str(l_value + &r_value)),
+                            Value::Str(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
                             _ => Err(LoxError::ValueError(right, String::from("Not a string.")))
                         }
                     }
+                    Value::Str(ref l_value) => {
+                        match right {
+                            Value::Int(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
+                            Value::Float(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
+                            Value::Identifier(name) => interpret_expr(build_binary_expr(left, op, env.get(&*name)?), env),
+                            Value::Str(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
+                            Value::Bool(r_value) => Ok(Value::Str(format!("{l_value}{r_value}"))),
+                            _ => Err(LoxError::ValueError(right, String::from("Value cannot be concatenated to a string.")))
+                        }
+                    },
                     _ => Err(LoxError::ValueError(left, String::from("Not a number.")))
                 },
+                // TODO: Handle divisions by zero
                 Slash => calculate!(left, op, right, env, /),
                 Asterisk => calculate!(left, op, right, env, *),
                 Mod => calculate!(left, op, right, env, %),
@@ -234,7 +252,7 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
             env.assign(name, value)?;
             Ok(Value::Nil())
         },
-        Expr::Call(name, args) => interpret_call(name, args, env)
+        Expr::Call(name, args) => interpret_call(name, *args, env)
     }
 }
 
@@ -281,6 +299,7 @@ fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> R
     Ok(Value::Nil())
 }
 
+// Adds a closure to the environment.
 fn interpret_closure(name: Token, args: Vec<Token>, body: Box<Vec<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
     if env.is_global() {
         env.define_global(name.lexeme.clone(),
@@ -294,7 +313,7 @@ fn interpret_closure(name: Token, args: Vec<Token>, body: Box<Vec<Statement>>, e
 }
 
 // Interprets and calls a callable
-fn interpret_call(name: Box<Expr>, args: Box<Vec<Expr>>, env: &mut Environment) -> Result<Value, LoxError> {
+fn interpret_call(name: Box<Expr>, args: Vec<Expr>, env: &mut Environment) -> Result<Value, LoxError> {
     // Get callable
     let callable: Value = interpret_expr(*name.clone(), env)?;
     let callable_result: Result<Box<LoxCallable>, Value> = callable.into_callable();
@@ -306,11 +325,11 @@ fn interpret_call(name: Box<Expr>, args: Box<Vec<Expr>>, env: &mut Environment) 
     let callable: LoxCallable = *callable_result.unwrap();
 
     // Interpret arguments
-    if !callable.check_arity(&*args) {
+    if !callable.check_arity(&args) {
         return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(callable.get_name())), String::from("Invalid arity for function.")));
     }
 
-    let args = interpret_args(*args, env)?;
+    let args = interpret_args(args, env)?;
 
     callable.call(args, env)
 }
@@ -324,6 +343,11 @@ fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, 
     }
 
     Ok(interpreted_args)
+}
+
+fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
+    let class = LoxClass::new(name.lexeme.clone());
+    env.define_global(name.lexeme, Value::Class(class))
 }
 
 // Gets the truthiness of a value

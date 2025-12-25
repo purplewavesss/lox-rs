@@ -1,3 +1,4 @@
+use std::fmt::{self, Display};
 use crate::{LoxError, interpreter::{environment::Environment, interpret::interpret}, types::{expr::Expr, statement::Statement, token::Token, value::Value}};
 use crate::types::token_type::TokenType;
 
@@ -33,6 +34,15 @@ impl LoxCallable {
         match self {
             Self::Native(name, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0),
             Self::Closure(name, _, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0)
+        }
+    }
+}
+
+impl Display for LoxCallable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Native(name, _, _) => write!(f, "{name}"),
+            Self::Closure(name, _, _, _) => write!(f, "{name}")
         }
     }
 }
