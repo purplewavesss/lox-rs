@@ -1,5 +1,5 @@
 use std::fmt;
-use crate::types::{token_type::TokenType, values::value::Value};
+use crate::types::{token_type::TokenType, values::Value};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
@@ -29,6 +29,6 @@ impl Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} {} {}", self.token_type, self.lexeme, self.literal)
+        write!(f, "{}", self.lexeme)
     }
 }

@@ -1,5 +1,5 @@
 use std::fmt::{self, Display};
-use crate::{LoxError, interpreter::{environment::Environment, interpret::interpret}, types::{expr::Expr, statement::Statement, token::Token, values::value::Value}};
+use crate::{LoxError, interpreter::{environment::Environment, interpret::interpret}, types::{expr::Expr, statement::Statement, token::Token, values::Value}};
 use crate::types::token_type::TokenType;
 
 // Callables have to derive PartialEq because they are inside of the Value enum. In practice, they should not be compared to each other anywhere in the code.

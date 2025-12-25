@@ -1,6 +1,9 @@
+use std::rc::Rc;
+
 use crate::LoxError;
 use crate::interpreter::environment::Environment;
-use crate::types::values::{callable::LoxCallable, value::Value, class::LoxClass};
+use crate::types::values::object::LoxObject;
+use crate::types::values::{callable::LoxCallable, Value, class::LoxClass};
 use crate::types::{{expr::Expr, statement::Statement, token::Token, token_type::TokenType::*}};
 
 /// Generates codes for calculations
@@ -302,35 +305,41 @@ fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> R
 fn interpret_closure(name: Token, args: Vec<Token>, body: Box<Vec<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
     if env.is_global() {
         env.define_global(name.lexeme.clone(),
-                                 Value::Callable(Box::new(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env)))))
+                                 Value::Callable(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env))))
     }
 
     else {
         Ok(env.define_local(name.lexeme.clone(),
-                                   Value::Callable(Box::new(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env))))))
+                                   Value::Callable(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env)))))
     }
 }
 
 // Interprets and calls a callable
 fn interpret_call(name: Box<Expr>, args: Vec<Expr>, env: &mut Environment) -> Result<Value, LoxError> {
-    // Get callable
-    let callable: Value = interpret_expr(*name.clone(), env)?;
-    let callable_result: Result<Box<LoxCallable>, Value> = callable.into_callable();
+    let called: Value = interpret_expr(*name.clone(), env)?;
+    
+    match called {
+        Value::Callable(callable) => {
+            // Interpret arguments
+            if !callable.check_arity(&args) {
+                return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(callable.get_name())), String::from("Invalid arity for function.")));
+            }
 
-    if let Err(value) = callable_result {
-        return Err(LoxError::ValueError(value, String::from("Name given was not callable.")));
+            let args = interpret_args(args, env)?;
+
+            callable.call(args, env)
+        },
+        Value::Class(class) => {
+            if args.len() != 0 {
+                return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(class.get_name_token())), String::from("Invalid arity for constructor.")));
+            }
+
+            let args = interpret_args(args, env)?;
+
+            Ok(Value::Instance(LoxObject::new(class)))
+        },
+        _ => Err(LoxError::ValueError(called, String::from("Value is not callable!")))
     }
-
-    let callable: LoxCallable = *callable_result.unwrap();
-
-    // Interpret arguments
-    if !callable.check_arity(&args) {
-        return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(callable.get_name())), String::from("Invalid arity for function.")));
-    }
-
-    let args = interpret_args(args, env)?;
-
-    callable.call(args, env)
 }
 
 // Interprets a vector of function arguments.
@@ -346,7 +355,7 @@ fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, 
 
 fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
     let class = LoxClass::new(name.lexeme.clone());
-    env.define_global(name.lexeme, Value::Class(class))
+    env.define_global(name.lexeme, Value::Class(Rc::new(class)))
 }
 
 // Gets the truthiness of a value
