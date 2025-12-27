@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt::{self, Display}, rc::Rc};
-use std::cell::RefCell;
-use crate::{LoxError, types::{token::Token, values::{Value, class::LoxClass}}};
+use crate::{types::{token::Token, values::{Value, class::LoxClass}}};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoxObject {
