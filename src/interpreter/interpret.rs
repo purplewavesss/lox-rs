@@ -140,7 +140,7 @@ fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<Value, 
     }
 }
 
-// Interprets a block in a new block environment.
+/// Interprets a block in a new block environment.
 fn interpret_block(statements: Box<Vec<Statement>>, env: &mut Environment) -> Result<Value, LoxError> {
     let mut block_env: Environment = Environment::get_block_env(env);
     let result: Value = interpret(*statements, &mut block_env)?;
@@ -151,7 +151,7 @@ fn interpret_block(statements: Box<Vec<Statement>>, env: &mut Environment) -> Re
     Ok(result)
 }
 
-// Interprets the value of an expression.
+/// Interprets the value of an expression.
 fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
     match ast {
         Expr::Literal(value) => Ok(value),
@@ -259,8 +259,7 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
         Expr::Call(name, args) => interpret_call(name, *args, env),
         Expr::Get(object, property) => {
             let object: Rc<RefCell<LoxObject>> = get_object(*object, env)?;
-            let object: Ref<LoxObject> = object.borrow();
-            object.get(&property)
+            get_from_ref(object, &property)
         },
         Expr::Set(object, property, value) => {
             let object: Rc<RefCell<LoxObject>> = get_object(*object, env)?;
@@ -271,7 +270,7 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
     }
 }
 
-// Interprets an if statement in a new block environment.
+/// Interprets an if statement in a new block environment.
 fn interpret_if(cond: Expr, then: Box<Statement>, els: Box<Option<Statement>>, env: &mut Environment) -> Result<Value, LoxError> {
     let cond_value: Value = interpret_expr(cond, env)?;
 
@@ -287,7 +286,7 @@ fn interpret_if(cond: Expr, then: Box<Statement>, els: Box<Option<Statement>>, e
     }
 }
 
-// Interprets a declaration and adds it to the current environment.
+/// Interprets a declaration and adds it to the current environment.
 fn interpret_declaration(name: Token, identifier: Option<Expr>, env: &mut Environment) -> Result<(), LoxError> {
     match identifier {
         None => Ok(env.define_local(name.lexeme, Value::Nil())),
@@ -301,7 +300,7 @@ fn interpret_declaration(name: Token, identifier: Option<Expr>, env: &mut Enviro
 }
 
 
-// Interprets a while loop in a block environment.
+/// Interprets a while loop in a block environment.
 fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> Result<Value, LoxError> {
     while get_value_truth(interpret_expr(condition.clone(), env)?, env)? {
         let result = interpret_statement(body.clone(), env)?;
@@ -314,26 +313,25 @@ fn interpret_while(condition: Expr, body: Statement, env: &mut Environment) -> R
     Ok(Value::Nil())
 }
 
-// Adds a closure to the environment.
+/// Adds a closure to the environment.
 fn interpret_closure(name: Token, args: Vec<Token>, body: Box<Vec<Statement>>, env: &mut Environment) -> Result<(), LoxError> {
     if env.is_global() {
         env.define_global(name.lexeme.clone(),
-                                 Value::Callable(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env))))
+                          Value::Callable(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env), false)))
     }
 
     else {
         Ok(env.define_local(name.lexeme.clone(),
-                                   Value::Callable(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env)))))
+                            Value::Callable(LoxCallable::Closure(name.lexeme, args, body, Environment::get_block_env(&env), false))))
     }
 }
 
-// Interprets and calls a callable
+/// Interprets and calls a callable
 fn interpret_call(name: Box<Expr>, args: Vec<Expr>, env: &mut Environment) -> Result<Value, LoxError> {
-    let called: Value = interpret_expr(*name.clone(), env)?;
+    let called: Value = interpret_expr(*name, env)?;
     
     match called {
         Value::Callable(callable) => {
-            // Interpret arguments
             if !callable.check_arity(&args) {
                 return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(callable.get_name())), String::from("Invalid arity for function.")));
             }
@@ -343,21 +341,40 @@ fn interpret_call(name: Box<Expr>, args: Vec<Expr>, env: &mut Environment) -> Re
             callable.call(args, env)
         },
         Value::Class(class) => {
-            if args.len() != 0 {
-                return Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(class.get_name_token())), String::from("Invalid arity for constructor.")));
+            let constructor: Option<LoxCallable> = class.find_method(&String::from("init"));
+
+            match constructor {
+                // Defined constructor
+                Some(init) => {
+                    if !init.check_arity(&args) {
+                        Err(LoxError::ArgumentError(Statement::Expression(Expr::Variable(init.get_name())), String::from("Invalid arity for constructor.")))
+                    }
+
+                    else {
+                        let args: Vec<Value> = interpret_args(args, env)?;
+                        let obj: Rc<RefCell<LoxObject>> = Rc::new(RefCell::new(LoxObject::new(class)));
+                        let init: LoxCallable = init.bind(obj.clone());
+                        init.call(args, env)?;
+                        Ok(Value::Instance(obj))
+                    }
+                },
+                // Auto constructor
+                None => {
+                    if args.len() > 0 {
+                        Err(LoxError::ArgumentError(Statement::Expression(Expr::Literal(Value::Class(class))), String::from("Invalid arity for constructor.")))
+                    }
+
+                    else {
+                        Ok(Value::Instance(Rc::new(RefCell::new(LoxObject::new(class)))))
+                    }
+                }
             }
-
-            let args = interpret_args(args, env)?;
-
-            Ok(Value::Instance(Rc::new(
-                               RefCell::new(
-                               LoxObject::new(class)))))
         },
         _ => Err(LoxError::ValueError(called, String::from("Value is not callable!")))
     }
 }
 
-// Interprets a vector of function arguments.
+/// Interprets a vector of function arguments.
 fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, LoxError> {
     let mut interpreted_args: Vec<Value> = Vec::new();
 
@@ -368,13 +385,14 @@ fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, 
     Ok(interpreted_args)
 }
 
+/// Interprets a class and its associated methods
 fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
     let mut class_methods: HashMap<String, LoxCallable> = HashMap::new();
 
     for method in methods {
         let method_declaration: (Token, Vec<Token>, Box<Vec<Statement>>) = method.into_fun_declaration().unwrap();
         let name = method_declaration.0.lexeme;
-        let method: LoxCallable = LoxCallable::Closure(name.clone(), method_declaration.1, method_declaration.2, env.clone());
+        let method: LoxCallable = LoxCallable::Closure(name.clone(), method_declaration.1, method_declaration.2, env.clone(), false);
         class_methods.insert(name, method);
     }
     
@@ -389,7 +407,7 @@ fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) 
     }
 }
 
-// Gets the truthiness of a value
+/// Gets the truthiness of a value
 fn get_value_truth(value: Value, env: &Environment) -> Result<bool, LoxError> {
     match value {
         Value::Bool(truth) => Ok(truth),
@@ -399,14 +417,14 @@ fn get_value_truth(value: Value, env: &Environment) -> Result<bool, LoxError> {
     }
 }
 
-// Builds a new binary expression from given values.
+/// Builds a new binary expression from given values.
 fn build_binary_expr(left: Value, op: Token, right: Value) -> Expr {
     Expr::Binary(Box::new(Expr::Literal(left)),
                  op,
                  Box::new(Expr::Literal(right)))
 }
 
-// Extracts a LoxObject out of an expression.
+/// Extracts a LoxObject out of an expression.
 fn get_object(obj: Expr, env: &mut Environment) -> Result<Rc<RefCell<LoxObject>>, LoxError> {
     let object: Value = interpret_expr(obj, env)?;
     let object: Result<Rc<RefCell<LoxObject>>, Value> = object.into_instance();
@@ -414,5 +432,28 @@ fn get_object(obj: Expr, env: &mut Environment) -> Result<Rc<RefCell<LoxObject>>
     match object {
         Ok(obj) => Ok(obj),
         Err(value) => Err(LoxError::ValueError(value, String::from("Not an object!")))
+    }
+}
+
+/// Gets a property from a LoxObject reference.
+fn get_from_ref(obj_ref: Rc<RefCell<LoxObject>>, property: &Token) -> Result<Value, LoxError> {
+    let new_obj_ref: Rc<RefCell<LoxObject>> = obj_ref.clone();
+    let obj: Ref<LoxObject> = obj_ref.borrow();
+
+    if obj.fields.contains_key(&property.lexeme) {
+        Ok(obj.fields.get(&property.lexeme).unwrap().clone())
+    }
+
+    else {
+        match obj.get_class().find_method(&property.lexeme) {
+            Some(method) => {
+                Ok(Value::Callable(method.bind(new_obj_ref)))
+            },
+
+            None => {
+                let token_name = property.lexeme.clone();
+                Err(LoxError::NameError(token_name, format!("Undefined property {}", property.lexeme)))
+            }
+        }
     }
 }

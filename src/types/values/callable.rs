@@ -7,7 +7,7 @@ use crate::types::token_type::TokenType;
 #[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum LoxCallable {
     Native(String, fn(Vec<Value>) -> Result<Value, LoxError>, usize),
-    Closure(String, Vec<Token>, Box<Vec<Statement>>, Environment)
+    Closure(String, Vec<Token>, Box<Vec<Statement>>, Environment, bool)
 }
 
 impl LoxCallable {
@@ -15,11 +15,22 @@ impl LoxCallable {
     pub fn call(self, arg_values: Vec<Value>, globals_env: &Environment) -> Result<Value, LoxError> {
         match self {
             LoxCallable::Native(_, func, _) => func(arg_values),
-            LoxCallable::Closure(_, arg_names, body, env) => {
+            LoxCallable::Closure(_, arg_names, body, env, is_init) => {
                 let args_env = Environment::build(&arg_names, &arg_values);
                 let mut env = env + args_env;
                 env.add_globals(globals_env);
-                interpret(*body, &mut env)
+                let result: Value = interpret(*body, &mut env)?;
+
+                if is_init {
+                    // Returns the constructed result if method is init
+                    Ok(Value::Instance(env.get_by_str("this")?
+                                          .into_instance()
+                                          .unwrap()))                   
+                }
+
+                else {
+                    Ok(result)
+                }
             }
         }
     }
@@ -27,24 +38,31 @@ impl LoxCallable {
     pub fn check_arity(&self, other: &Vec<Expr>) -> bool {
         match self {
             Self::Native(_, _, arity) => *arity == other.len(),
-            Self::Closure(_, tokens, _, _) => tokens.len() == other.len()
+            Self::Closure(_, tokens, _, _, _) => tokens.len() == other.len()
         }
     }
     
     pub fn get_name(&self) -> Token {
         match self {
             Self::Native(name, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0),
-            Self::Closure(name, _, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0)
+            Self::Closure(name, _, _, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0)
         }
     }
 
-    pub fn bind(self, instance: &LoxObject) -> Self {
-        let closure: (String, Vec<Token>, Box<Vec<Statement>>, Environment) = self.into_closure().expect("Bind was used on a native function.");
+    /// Binds a method to an object, returning the new binded version of that object.
+    pub fn bind(self, instance: Rc<RefCell<LoxObject>>) -> Self {
+        let closure: (String, Vec<Token>, Box<Vec<Statement>>, Environment, bool) = self.into_closure().expect("Bind was used on a native function.");
         let mut object_env = Environment::from(closure.3);
         
-        object_env.define_local(String::from("this"), Value::Instance(Rc::new(RefCell::new(instance.clone()))));
+        object_env.define_local(String::from("this"), Value::Instance(instance));
 
-        LoxCallable::Closure(closure.0, closure.1, closure.2, object_env)
+        if closure.0 == String::from("init") {
+            LoxCallable::Closure(closure.0, closure.1, closure.2, object_env, true)
+        }
+
+        else {
+            LoxCallable::Closure(closure.0, closure.1, closure.2, object_env, closure.4)
+        }
     }
 }
 
@@ -52,7 +70,7 @@ impl Display for LoxCallable {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Native(name, _, _) => write!(f, "{name}"),
-            Self::Closure(name, _, _, _) => write!(f, "{name}")
+            Self::Closure(name, _, _, _, _) => write!(f, "{name}")
         }
     }
 }

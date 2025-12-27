@@ -110,8 +110,21 @@ impl Environment {
         }
 
         else {
-            let token_name: String = name.lexeme.clone();
-            Err(LoxError::NameError(token_name, String::from("Undefined variable.")))
+            Err(LoxError::NameError(name.lexeme.clone(), String::from("Undefined variable.")))
+        }
+    }
+
+    pub fn get_by_str(&self, name: &str) -> Result<Value, LoxError> {
+        if self.locals.contains_key(name) {
+            Ok(self.locals[name].clone())
+        }
+        
+        else if self.globals.contains_key(name) {
+            Ok(self.globals[name].clone())
+        }
+
+        else {
+            Err(LoxError::NameError(String::from(name), String::from("Undefined variable.")))
         }
     }
 

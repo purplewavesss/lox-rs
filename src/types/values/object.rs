@@ -1,10 +1,11 @@
 use std::{collections::HashMap, fmt::{self, Display}, rc::Rc};
+use std::cell::RefCell;
 use crate::{LoxError, types::{token::Token, values::{Value, class::LoxClass}}};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoxObject {
     class: Rc<LoxClass>,
-    fields: HashMap<String, Value>
+    pub fields: HashMap<String, Value>
 }
 
 impl LoxObject {
@@ -12,23 +13,8 @@ impl LoxObject {
         Self { class, fields: HashMap::new() }
     }
 
-    pub fn get(&self, name: &Token) -> Result<Value, LoxError> {
-        if self.fields.contains_key(&name.lexeme) {
-            Ok(self.fields.get(&name.lexeme).unwrap().clone())
-        }
-
-        else {
-            match self.class.find_method(&name.lexeme) {
-                Some(method) => {
-                    Ok(Value::Callable(method.clone().bind(&self)))
-                },
-
-                None => {
-                    let token_name = name.lexeme.clone();
-                    Err(LoxError::NameError(token_name, format!("Undefined property {}", name.lexeme)))
-                }
-            }
-        }
+    pub fn get_class(&self) -> Rc<LoxClass> {
+        self.class.clone()
     }
 
     pub fn set(&mut self, name: Token, value: Value) {

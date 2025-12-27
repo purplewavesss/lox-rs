@@ -1,6 +1,8 @@
 use crate::LoxError;
 use crate::types::{expr::Expr, token::Token, values::Value, token_type::TokenType::{self, *}, statement::Statement};
 
+/// TODO: Allow underscores to be used in names.
+
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize

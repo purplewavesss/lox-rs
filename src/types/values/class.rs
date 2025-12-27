@@ -12,8 +12,8 @@ impl LoxClass {
         Self { name, methods }
     }
 
-    pub fn find_method(&self, name: &String) -> Option<&LoxCallable> {
-        self.methods.get(name)
+    pub fn find_method(&self, name: &String) -> Option<LoxCallable> {
+        self.methods.get(name).cloned()
     }
 
     pub fn get_name_token(&self) -> Token {

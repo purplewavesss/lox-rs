@@ -1,0 +1,18 @@
+class Cat {
+  init(meow) {
+    this.meow = meow;
+  }
+
+  setMeow(meow) {
+    this.meow = meow;
+  }
+
+  speak() {
+    print this.meow;
+  }
+}
+
+var calico = Cat("Meow! I'm a calico cat!");
+calico.speak();
+calico.setMeow("purrrrr");
+calico.speak();
