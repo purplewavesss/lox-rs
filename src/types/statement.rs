@@ -1,7 +1,8 @@
 use std::fmt::{self, Display};
+use enum_as_inner::EnumAsInner;
 use crate::types::{expr::Expr, token::Token};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum Statement {
     Block(Box<Vec<Statement>>),
     Class(Token, Box<Vec<Statement>>),

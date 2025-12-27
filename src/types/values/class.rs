@@ -1,14 +1,19 @@
-use std::fmt::{self, Display};
-use crate::types::{token::Token, token_type::TokenType, values::Value};
+use std::{collections::HashMap, fmt::{self, Display}};
+use crate::types::{token::Token, token_type::TokenType, values::{Value, callable::LoxCallable}};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoxClass {
-    pub name: String
+    name: String,
+    methods: HashMap<String, LoxCallable>
 }
 
 impl LoxClass {
-    pub fn new(name: String) -> Self {
-        Self { name }
+    pub fn new(name: String, methods: HashMap<String, LoxCallable>) -> Self {
+        Self { name, methods }
+    }
+
+    pub fn find_method(&self, name: &String) -> Option<&LoxCallable> {
+        self.methods.get(name)
     }
 
     pub fn get_name_token(&self) -> Token {

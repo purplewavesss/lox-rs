@@ -1,0 +1,23 @@
+class Modulus {
+  isEven(n) {
+    if (n == 0) {
+      return true;
+    }
+
+    else {
+      return this.isOdd(n - 1);
+    }
+  }
+
+  isOdd(n) {
+    if (n == 0) {
+      return false;
+    }
+
+    else {
+      return this.isEven(n - 1);
+    }
+  }
+}
+
+print Modulus().isEven(25);

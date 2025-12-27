@@ -210,7 +210,7 @@ impl Parser {
         Ok(Statement::FunDeclaration(name, params, body))
     }
 
-    // Consume return statements.
+    /// Consume return statements.
     fn return_statement(&mut self) -> Result<Statement, LoxError> {
         let mut value: Expr = Expr::Literal(Value::Nil());
 
@@ -223,7 +223,7 @@ impl Parser {
         Ok(Statement::Return(value))
     }
 
-    // Consumes class declarations.
+    /// Consumes class declarations.
     fn class_declaration(&mut self) -> Result<Statement, LoxError> {
         // Get names
         let name: Token = self.consume(Identifier, "Expect class name.")?;
@@ -256,16 +256,16 @@ impl Parser {
             // Parse the expression's l-value recursively
             let value: Expr = self.assignment()?;
 
-            if let Expr::Variable(name) = exp {
-                return Ok(Expr::Assign(name, Box::from(value)))
-            }
-
-            else {
-                return Err(LoxError::ParseError(equals, String::from("Invalid assignment target.")));
+            match exp {
+                Expr::Variable(name) => Ok(Expr::Assign(name, Box::from(value))),
+                Expr::Get(object, property) => Ok(Expr::Set(object, property, Box::from(value))),
+                _ => Err(LoxError::ParseError(equals, String::from("Invalid assignment target.")))
             }
         }
 
-        Ok(exp)
+        else {
+            Ok(exp)
+        }
     }
 
     /// Builds ASTs for logical ors
@@ -366,6 +366,11 @@ impl Parser {
                 expr = self.parse_arguments(expr)?;
             }
 
+            else if self.match_token(&[Dot]) {
+                let name: Token = self.consume(Identifier, "Expect property name after '.'.")?;
+                expr = Expr::Get(Box::new(expr), name)
+            }
+
             else {
                 break;
             }
@@ -416,6 +421,10 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Literal(self.previous().literal))
             },
+            This => {
+                self.advance();
+                Ok(Expr::This(self.previous()))
+            }
             Identifier => {
                 self.advance();
                 Ok(Expr::Variable(self.previous()))

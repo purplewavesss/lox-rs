@@ -23,6 +23,16 @@ impl Environment {
         }
     }
 
+    pub fn from(env: Environment) -> Self {
+        Self { 
+            locals: env.locals,
+            globals: env.globals,
+            assignments: env.assignments,
+            declared_here_in_block: env.declared_here_in_block,
+            is_block_env: env.is_block_env
+        }
+    }
+
     /// Constructs a new environment from a vector of tokens and values. This does not perform arity checks: it simply returns when a vector is drained.
     pub fn build(names: &Vec<Token>, values: &Vec<Value>) -> Self {
         let mut build_values: HashMap<String, Value> = HashMap::new();
@@ -101,7 +111,7 @@ impl Environment {
 
         else {
             let token_name: String = name.lexeme.clone();
-            Err(LoxError::NameError(token_name, format!("Undefined variable.")))
+            Err(LoxError::NameError(token_name, String::from("Undefined variable.")))
         }
     }
 

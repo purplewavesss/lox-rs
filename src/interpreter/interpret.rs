@@ -1,3 +1,5 @@
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::LoxError;
@@ -248,13 +250,24 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
                                                String::from("Invalid operator used in Expr::Logical")))
             }
         }
-        Expr::Variable(name) => env.get(&name),
+        Expr::Variable(name) | Expr::This(name) => env.get(&name),
         Expr::Assign(name, exp) => {
             let value: Value = interpret_expr(*exp, env)?;
             env.assign(name, value)?;
             Ok(Value::Nil())
         },
-        Expr::Call(name, args) => interpret_call(name, *args, env)
+        Expr::Call(name, args) => interpret_call(name, *args, env),
+        Expr::Get(object, property) => {
+            let object: Rc<RefCell<LoxObject>> = get_object(*object, env)?;
+            let object: Ref<LoxObject> = object.borrow();
+            object.get(&property)
+        },
+        Expr::Set(object, property, value) => {
+            let object: Rc<RefCell<LoxObject>> = get_object(*object, env)?;
+            let mut object: RefMut<LoxObject> = object.borrow_mut();
+            object.set(property, interpret_expr(*value, env)?);
+            Ok(Value::Nil())
+        }
     }
 }
 
@@ -336,7 +349,9 @@ fn interpret_call(name: Box<Expr>, args: Vec<Expr>, env: &mut Environment) -> Re
 
             let args = interpret_args(args, env)?;
 
-            Ok(Value::Instance(LoxObject::new(class)))
+            Ok(Value::Instance(Rc::new(
+                               RefCell::new(
+                               LoxObject::new(class)))))
         },
         _ => Err(LoxError::ValueError(called, String::from("Value is not callable!")))
     }
@@ -354,8 +369,24 @@ fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, 
 }
 
 fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
-    let class = LoxClass::new(name.lexeme.clone());
-    env.define_global(name.lexeme, Value::Class(Rc::new(class)))
+    let mut class_methods: HashMap<String, LoxCallable> = HashMap::new();
+
+    for method in methods {
+        let method_declaration: (Token, Vec<Token>, Box<Vec<Statement>>) = method.into_fun_declaration().unwrap();
+        let name = method_declaration.0.lexeme;
+        let method: LoxCallable = LoxCallable::Closure(name.clone(), method_declaration.1, method_declaration.2, env.clone());
+        class_methods.insert(name, method);
+    }
+    
+    let class = LoxClass::new(name.lexeme.clone(), class_methods);
+    
+    if env.is_global() {
+        env.define_global(name.lexeme, Value::Class(Rc::new(class)))
+    }
+
+    else {
+        Ok(env.define_local(name.lexeme, Value::Class(Rc::new(class))))
+    }
 }
 
 // Gets the truthiness of a value
@@ -373,4 +404,15 @@ fn build_binary_expr(left: Value, op: Token, right: Value) -> Expr {
     Expr::Binary(Box::new(Expr::Literal(left)),
                  op,
                  Box::new(Expr::Literal(right)))
+}
+
+// Extracts a LoxObject out of an expression.
+fn get_object(obj: Expr, env: &mut Environment) -> Result<Rc<RefCell<LoxObject>>, LoxError> {
+    let object: Value = interpret_expr(obj, env)?;
+    let object: Result<Rc<RefCell<LoxObject>>, Value> = object.into_instance();
+
+    match object {
+        Ok(obj) => Ok(obj),
+        Err(value) => Err(LoxError::ValueError(value, String::from("Not an object!")))
+    }
 }

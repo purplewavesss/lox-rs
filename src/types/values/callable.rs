@@ -1,9 +1,10 @@
-use std::fmt::{self, Display};
-use crate::{LoxError, interpreter::{environment::Environment, interpret::interpret}, types::{expr::Expr, statement::Statement, token::Token, values::Value}};
+use std::{cell::RefCell, fmt::{self, Display}, rc::Rc};
+use enum_as_inner::EnumAsInner;
+use crate::{LoxError, interpreter::{environment::Environment, interpret::interpret}, types::{expr::Expr, statement::Statement, token::Token, values::{Value, object::LoxObject}}};
 use crate::types::token_type::TokenType;
 
 // Callables have to derive PartialEq because they are inside of the Value enum. In practice, they should not be compared to each other anywhere in the code.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum LoxCallable {
     Native(String, fn(Vec<Value>) -> Result<Value, LoxError>, usize),
     Closure(String, Vec<Token>, Box<Vec<Statement>>, Environment)
@@ -35,6 +36,15 @@ impl LoxCallable {
             Self::Native(name, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0),
             Self::Closure(name, _, _, _) => Token::new(TokenType::Identifier, name.clone(), Value::Nil(), 0)
         }
+    }
+
+    pub fn bind(self, instance: &LoxObject) -> Self {
+        let closure: (String, Vec<Token>, Box<Vec<Statement>>, Environment) = self.into_closure().expect("Bind was used on a native function.");
+        let mut object_env = Environment::from(closure.3);
+        
+        object_env.define_local(String::from("this"), Value::Instance(Rc::new(RefCell::new(instance.clone()))));
+
+        LoxCallable::Closure(closure.0, closure.1, closure.2, object_env)
     }
 }
 

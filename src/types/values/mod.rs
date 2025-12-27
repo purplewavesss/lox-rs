@@ -1,3 +1,4 @@
+use std::cell::{Ref, RefCell};
 use std::fmt;
 use std::rc::Rc;
 use enum_as_inner::EnumAsInner;
@@ -18,7 +19,7 @@ pub enum Value {
     Bool(bool),
     Callable(LoxCallable),
     Class(Rc<LoxClass>),
-    Instance(LoxObject),
+    Instance(Rc<RefCell<LoxObject>>),
     Nil(),
     None()
 }
@@ -33,7 +34,10 @@ impl fmt::Display for Value {
             Self::Bool(bool) => write!(f, "{bool}"),
             Self::Callable(callable) => callable.fmt(f),
             Self::Class(class) => class.fmt(f),
-            Self::Instance(obj) => obj.fmt(f),
+            Self::Instance(obj) => {
+                let obj: Ref<LoxObject> = obj.borrow();
+                obj.fmt(f)
+            },
             Self::Nil() => write!(f, ""),
             Self::None() => write!(f, "")
         }

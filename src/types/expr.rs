@@ -18,5 +18,11 @@ pub enum Expr {
     // e.g. a
     Variable(Token),
     // e.g. a = 5
-    Assign(Token, Box<Expr>)
+    Assign(Token, Box<Expr>),
+    // e.g. object.property
+    Get(Box<Expr>, Token),
+    // e.g. object.property = value
+    Set(Box<Expr>, Token, Box<Expr>),
+    // e.g. this.property
+    This(Token)
 }
