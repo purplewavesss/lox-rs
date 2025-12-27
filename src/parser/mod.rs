@@ -229,9 +229,16 @@ impl Parser {
     fn class_declaration(&mut self) -> Result<Statement, LoxError> {
         // Get names
         let name: Token = self.consume(Identifier, "Expect class name.")?;
-        self.consume(LeftBrace, "Expect '{' before class body.")?;
+
+        // Get superclass
+        let mut superclass: Option<Expr> = None;
+        if self.match_token(&[Less]) {
+            self.consume(Identifier, "Expect superclass name.")?;
+            superclass = Some(Expr::Variable(self.previous()));
+        }
 
         // Get body
+        self.consume(LeftBrace, "Expect '{' before class body.")?;
         let mut methods: Vec<Statement> = Vec::new();
 
         while !self.check(&RightBrace) && !self.is_at_end() {
@@ -240,7 +247,7 @@ impl Parser {
 
         self.consume(RightBrace, "Expect '}' after class body.")?;
 
-        Ok(Statement::Class(name, Box::new(methods)))
+        Ok(Statement::Class(name, superclass, Box::new(methods)))
     }
 
     /// Builds ASTs for expressions
@@ -404,7 +411,7 @@ impl Parser {
         Ok(Expr::Call(Box::new(callee), Box::new(arguments)))
     }
 
-    /// Parses literals.
+    /// Parses literals and basic expressions.
     fn primary(&mut self) -> Result<Expr, LoxError> {
         match self.tokens[self.current].token_type {
             False => { 
@@ -423,6 +430,13 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Literal(self.previous().literal))
             },
+            Super => {
+                self.advance();
+                let keyword: Token = self.previous();
+                self.consume(Dot, "Expect '.' after 'super'.")?;
+                let method: Token = self.consume(Identifier, "Expect superclass method name.")?;
+                Ok(Expr::Super(keyword, method))
+            }
             This => {
                 self.advance();
                 Ok(Expr::This(self.previous()))

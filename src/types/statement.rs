@@ -5,7 +5,7 @@ use crate::types::{expr::Expr, token::Token};
 #[derive(Clone, Debug, PartialEq, EnumAsInner)]
 pub enum Statement {
     Block(Box<Vec<Statement>>),
-    Class(Token, Box<Vec<Statement>>),
+    Class(Token, Option<Expr>, Box<Vec<Statement>>),
     FunDeclaration(Token, Vec<Token>, Box<Vec<Statement>>),
     Expression(Expr),
     If(Expr, Box<Statement>, Box<Option<Statement>>),
@@ -25,7 +25,7 @@ impl Display for Statement {
 
                 Ok(())
             },
-            Self::Class(name, _) => write!(f, "{name}"),
+            Self::Class(name,_, _) => write!(f, "{name}"),
             Self::FunDeclaration(name, _, _) => write!(f, "{}", name.lexeme),
             Self::Expression(exp) => write!(f, "{exp}"),
             Self::If(cond, then, els) => match &**els {

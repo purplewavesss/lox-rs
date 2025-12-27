@@ -23,6 +23,8 @@ pub enum Expr {
     Get(Box<Expr>, Token),
     // e.g. object.property = value
     Set(Box<Expr>, Token, Box<Expr>),
+    // e.g. super.method()
+    Super(Token, Token),
     // e.g. this.property
     This(Token)
 }

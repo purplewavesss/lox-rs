@@ -114,8 +114,8 @@ pub fn interpret(program: Vec<Statement>, env: &mut Environment) -> Result<Value
 fn interpret_statement(stmt: Statement, env: &mut Environment) -> Result<Value, LoxError> {
     match stmt {
         Statement::Block(statements) => interpret_block(statements, env),
-        Statement::Class(name, methods) => {
-            interpret_class(name, *methods, env)?;
+        Statement::Class(name, superclass, methods) => {
+            interpret_class(name, superclass, *methods, env)?;
             Ok(Value::Nil())
         },
         Statement::FunDeclaration(name, args, body) => {
@@ -266,6 +266,30 @@ fn interpret_expr(ast: Expr, env: &mut Environment) -> Result<Value, LoxError> {
             let mut object: RefMut<LoxObject> = object.borrow_mut();
             object.set(property, interpret_expr(*value, env)?);
             Ok(Value::Nil())
+        },
+        Expr::Super(name, method) => {
+            let name_value: Value = env.get(&name)?;
+
+            match name_value {
+                Value::Class(class) => {
+                    let method_result: Option<LoxCallable> = class.find_method(&method.lexeme);
+
+                    match method_result {
+                        Some(method) => {
+                            // Get this
+                            let this_value: Value = env.get_by_str("this")?;
+                            let this_result: Result<Rc<RefCell<LoxObject>>, Value> = this_value.into_instance();
+
+                            match this_result {
+                                Ok(this) => Ok(Value::Callable(method.bind(this))),
+                                Err(value) => Err(LoxError::ValueError(value, String::from("this is a defined variable in this scope, instead of a keyword.")))
+                            }
+                        },
+                        None => Err(LoxError::NameError(name.lexeme, String::from("Name does not correspond to a function.")))
+                    }
+                },
+                _ => Err(LoxError::ValueError(name_value, String::from("'super' does not refer to a class.")))
+            }
         }
     }
 }
@@ -386,17 +410,26 @@ fn interpret_args(args: Vec<Expr>, env: &mut Environment) -> Result<Vec<Value>, 
 }
 
 /// Interprets a class and its associated methods
-fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
+fn interpret_class(name: Token, superclass: Option<Expr>, methods: Vec<Statement>, env: &mut Environment) -> Result<(), LoxError> {
+    let superclass: Option<Rc<LoxClass>> = interpret_superclass(superclass, env)?;
     let mut class_methods: HashMap<String, LoxCallable> = HashMap::new();
+    let mut class_env: Environment = env.clone();
 
+    // Add superclass to env
+    if let Some(ref class) = superclass {
+        class_env.define_local(String::from("super"), Value::Class(class.clone()));
+    }
+
+    // Parse methods
     for method in methods {
         let method_declaration: (Token, Vec<Token>, Box<Vec<Statement>>) = method.into_fun_declaration().unwrap();
         let name = method_declaration.0.lexeme;
-        let method: LoxCallable = LoxCallable::Closure(name.clone(), method_declaration.1, method_declaration.2, env.clone(), false);
+        let method: LoxCallable = LoxCallable::Closure(name.clone(), method_declaration.1, method_declaration.2, Environment::get_block_env(&class_env), false);
         class_methods.insert(name, method);
     }
     
-    let class = LoxClass::new(name.lexeme.clone(), class_methods);
+    // Construct and add class
+    let class = LoxClass::new(name.lexeme.clone(), superclass, class_methods, class_env);
     
     if env.is_global() {
         env.define_global(name.lexeme, Value::Class(Rc::new(class)))
@@ -404,6 +437,22 @@ fn interpret_class(name: Token, methods: Vec<Statement>, env: &mut Environment) 
 
     else {
         Ok(env.define_local(name.lexeme, Value::Class(Rc::new(class))))
+    }
+}
+
+/// Gets a superclass if it exists and if the superclass given is not None.
+fn interpret_superclass(superclass: Option<Expr>, env: &mut Environment) -> Result<Option<Rc<LoxClass>>, LoxError> {
+    match superclass {
+        Some(class_expr) => {
+            let class_value = interpret_expr(class_expr, env)?;
+            let class_result = class_value.into_class();
+
+            match class_result {
+                Ok(class) => Ok(Some(class)),
+                Err(value) => Err(LoxError::ValueError(value, String::from("A superclass must be a class.")))
+            }
+        },
+        None => Ok(None)
     }
 }
 
@@ -449,7 +498,6 @@ fn get_from_ref(obj_ref: Rc<RefCell<LoxObject>>, property: &Token) -> Result<Val
             Some(method) => {
                 Ok(Value::Callable(method.bind(new_obj_ref)))
             },
-
             None => {
                 let token_name = property.lexeme.clone();
                 Err(LoxError::NameError(token_name, format!("Undefined property {}", property.lexeme)))

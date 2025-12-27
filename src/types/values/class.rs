@@ -1,19 +1,29 @@
-use std::{collections::HashMap, fmt::{self, Display}};
-use crate::types::{token::Token, token_type::TokenType, values::{Value, callable::LoxCallable}};
+use std::{collections::HashMap, fmt::{self, Display}, rc::Rc};
+use crate::{interpreter::environment::Environment, types::{token::Token, token_type::TokenType, values::{Value, callable::LoxCallable}}};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoxClass {
     name: String,
-    methods: HashMap<String, LoxCallable>
+    superclass: Option<Rc<LoxClass>>,
+    methods: HashMap<String, LoxCallable>,
+    env: Environment
 }
 
 impl LoxClass {
-    pub fn new(name: String, methods: HashMap<String, LoxCallable>) -> Self {
-        Self { name, methods }
+    pub fn new(name: String, superclass: Option<Rc<LoxClass>>, methods: HashMap<String, LoxCallable>, env: Environment) -> Self {
+        Self { name, superclass, methods, env }
     }
 
     pub fn find_method(&self, name: &String) -> Option<LoxCallable> {
-        self.methods.get(name).cloned()
+        match self.methods.get(name) {
+            Some(method) => Some(method.clone()),
+            None => {
+                match &self.superclass {
+                    Some(class) => class.find_method(name),
+                    None => None
+                }
+            }
+        }
     }
 
     pub fn get_name_token(&self) -> Token {
